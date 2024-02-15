@@ -1,4 +1,4 @@
-# PhysicsEngine
+# OpenGL 3D Scene
 
 
 ## Description
