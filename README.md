@@ -6,6 +6,8 @@
 A 3D scene made with the 300 es version of the OpenGL API as part of a noted project at the Sae Institute Geneva.
 
 ![Scene Rendering](documentation/images/scene_cover.png)
+![Scene Rendering](documentation/images/gold_sphere_cover.png)
+![Scene Rendering](documentation/images/chest_cover.png)
 
 ### Features
 
@@ -27,4 +29,4 @@ A 3D scene made with the 300 es version of the OpenGL API as part of a noted pro
 - High Dynamic Range (HDR) + Tone Mapping + Gamma Correction
 
 ## Blog posts
-- [Optimizations blog post](https://chocolive24.github.io/3d_scene/3d_scene.md.html)
+- [How I created an OpenGL 3D scene.](https://chocolive24.github.io/3d_scene/3d_scene.md.html)
