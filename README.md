@@ -30,8 +30,8 @@ A 3D scene made with the 300 es version of the OpenGL API as part of a noted pro
 
 ## How to build ?
 
-You can simply build the project with a CMake command or with CMakeGUI.
-It will creates a visual studio solution which you have to open.
+You can simply build the project with a CMake command or with CMakeGUI.  
+It will creates a visual studio solution which you have to open.  
 Then simply select the main solution as your starter project, and you're ready to go.
 
 ## Blog posts
