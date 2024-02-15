@@ -9,7 +9,7 @@ A 3D scene made with the 300 es version of the OpenGL API as part of a noted pro
 ![Scene Rendering](documentation/images/gold_sphere_cover.png)
 ![Scene Rendering](documentation/images/chest_cover.png)
 
-### Features
+## Features
 
 - OBJ Model Loading
 - Instancing
@@ -27,6 +27,10 @@ A 3D scene made with the 300 es version of the OpenGL API as part of a noted pro
 - Emissive Textures Mapping
 - Physically Based Bloom
 - High Dynamic Range (HDR) + Tone Mapping + Gamma Correction
+
+## How to build ?
+
+You can simply build the project with a CMake command or with CMakeGUI.
 
 ## Blog posts
 - [How I created an OpenGL 3D scene.](https://chocolive24.github.io/3d_scene/3d_scene.md.html)
