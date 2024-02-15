@@ -31,10 +31,9 @@ void Camera::End() noexcept {
 
 void Camera::Update(const float dt) { 
   if (are_mouse_inputs_enabled_) {
-    Rotate(dt);
     Zoom(wheel_scroll_, dt);
   }
-
+  Rotate(dt);
   Move(dt);
   wheel_scroll_ = 0.f;
 }

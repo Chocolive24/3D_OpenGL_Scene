@@ -177,7 +177,7 @@ void FinalScene::DrawImGui() {
         ImGui::SliderFloat("G##Point", &point_lights[0].color.y, 0.f, 30.f);
         ImGui::SliderFloat("B##Point", &point_lights[0].color.z, 0.f, 30.f);
         
-        if (ImGui::Button("Reset color##Point", ImVec2(100, 25))) {
+        if (ImGui::Button("Reset color##Point", ImVec2(125, 25))) {
           point_lights[0].color = base_point_light_col;
         }
 
@@ -188,7 +188,7 @@ void FinalScene::DrawImGui() {
         ImGui::SliderFloat("Y##Point", &point_lights[0].position.y, -10.f, 10.f);
         ImGui::SliderFloat("Z##Point", &point_lights[0].position.z, -10.f, 10.f);
 
-        if (ImGui::Button("Reset position##Point", ImVec2(100, 25))) {
+        if (ImGui::Button("Reset position##Point", ImVec2(125, 25))) {
           point_lights[0].position = base_point_light_pos;
         }
 
@@ -214,7 +214,7 @@ void FinalScene::DrawImGui() {
         ImGui::SliderFloat("G##Directional", &dir_light_color_.y, 0.f, 30.f);
         ImGui::SliderFloat("B##Directional", &dir_light_color_.z, 0.f, 30.f);
         
-        if (ImGui::Button("Reset color##Directional", ImVec2(100, 25))) {
+        if (ImGui::Button("Reset color##Directional", ImVec2(125, 25))) {
           dir_light_color_ = base_dir_light_col;
         }
 
@@ -225,7 +225,7 @@ void FinalScene::DrawImGui() {
         ImGui::SliderFloat("Y##DirectionalPos", &dir_light_pos_.y, -10.f, 10.f);
         ImGui::SliderFloat("Z##DirectionalPos", &dir_light_pos_.z, -10.f, 10.f);
 
-        if (ImGui::Button("Reset Position##DirectionalPos", ImVec2(100, 25))) {
+        if (ImGui::Button("Reset Position##DirectionalPos", ImVec2(125, 25))) {
           dir_light_pos_ = base_dir_light_pos;
         }
 
@@ -236,7 +236,7 @@ void FinalScene::DrawImGui() {
         ImGui::SliderFloat("Y##Directional", &dir_light_dir_.y, -1.f, 1.f);
         ImGui::SliderFloat("Z##Directional", &dir_light_dir_.z, -1.f, 1.f);
 
-        if (ImGui::Button("Reset Direction##Directional", ImVec2(100, 25))) {
+        if (ImGui::Button("Reset Direction##Directional", ImVec2(125, 25))) {
           dir_light_dir_ = base_dir_light_dir;
         }
 
@@ -265,64 +265,64 @@ void FinalScene::DrawImGui() {
 
 void FinalScene::CreatePipelines() noexcept {
   equirect_to_cubemap_pipe_.Begin(
-      "data/shaders/final_scene/transform/local_transform.vert",
-      "data/shaders/final_scene/hdr/equirectangular_to_cubemap.frag");
+      "data/shaders/transform/local_transform.vert",
+      "data/shaders/hdr/equirectangular_to_cubemap.frag");
 
   irradiance_pipeline_.Begin(
-      "data/shaders/final_scene/transform/local_transform.vert",
-      "data/shaders/final_scene/pbr/irradiance_convultion.frag");
+      "data/shaders/transform/local_transform.vert",
+      "data/shaders/pbr/irradiance_convultion.frag");
 
   prefilter_pipeline_.Begin(
-      "data/shaders/final_scene/transform/local_transform.vert",
-      "data/shaders/final_scene/pbr/prefilter.frag");
+      "data/shaders/transform/local_transform.vert",
+      "data/shaders/pbr/prefilter.frag");
 
-  brdf_pipeline_.Begin("data/shaders/final_scene/pbr/brdf.vert",
-                       "data/shaders/final_scene/pbr/brdf.frag");
+  brdf_pipeline_.Begin("data/shaders/pbr/brdf.vert",
+                       "data/shaders/pbr/brdf.frag");
 
-  geometry_pipeline_.Begin("data/shaders/final_scene/pbr/pbr_g_buffer.vert",
-                           "data/shaders/final_scene/pbr/pbr_g_buffer.frag");
+  geometry_pipeline_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
+                           "data/shaders/pbr/pbr_g_buffer.frag");
 
-  arm_geometry_pipe_.Begin("data/shaders/final_scene/pbr/pbr_g_buffer.vert",
-                           "data/shaders/final_scene/pbr/arm_pbr_g_buffer.frag");
+  arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
+                           "data/shaders/pbr/arm_pbr_g_buffer.frag");
 
-  emissive_arm_geometry_pipe_.Begin("data/shaders/final_scene/pbr/pbr_g_buffer.vert",
-      "data/shaders/final_scene/pbr/emissive_arm_pbr_g_buffer.frag");
+  emissive_arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
+      "data/shaders/pbr/emissive_arm_pbr_g_buffer.frag");
 
-  instanced_geometry_pipeline_.Begin("data/shaders/final_scene/pbr/instanced_pbr_g_buffer.vert",
-                                     "data/shaders/final_scene/pbr/pbr_g_buffer.frag");
+  instanced_geometry_pipeline_.Begin("data/shaders/pbr/instanced_pbr_g_buffer.vert",
+                                     "data/shaders/pbr/pbr_g_buffer.frag");
 
-  ssao_pipeline_.Begin("data/shaders/final_scene/transform/screen_transform.vert",
-                       "data/shaders/final_scene/ssao/ssao.frag");
-  ssao_blur_pipeline_.Begin("data/shaders/final_scene/transform/screen_transform.vert",
-                            "data/shaders/final_scene/ssao/ssao_blur.frag");
+  ssao_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                       "data/shaders/ssao/ssao.frag");
+  ssao_blur_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                            "data/shaders/ssao/ssao_blur.frag");
 
-  shadow_mapping_pipe_.Begin("data/shaders/final_scene/shadow/simple_depth.vert",
-                             "data/shaders/final_scene/shadow/simple_depth.frag");
+  shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
+                             "data/shaders/shadow/simple_depth.frag");
 
-  point_shadow_mapping_pipe_.Begin("data/shaders/final_scene/shadow/simple_depth.vert",
-                             "data/shaders/final_scene/shadow/point_light_simple_depth.frag");
+  point_shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
+                             "data/shaders/shadow/point_light_simple_depth.frag");
 
-  instanced_shadow_mapping_pipe_.Begin("data/shaders/final_scene/shadow/instanced_simple_depth.vert",
-                                       "data/shaders/final_scene/shadow/simple_depth.frag");
-  point_instanced_shadow_mapping_pipe_.Begin("data/shaders/final_scene/shadow/instanced_simple_depth.vert",
-                                             "data/shaders/final_scene/shadow/point_light_simple_depth.frag");
+  instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
+                                       "data/shaders/shadow/simple_depth.frag");
+  point_instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
+                                             "data/shaders/shadow/point_light_simple_depth.frag");
 
-  pbr_lighting_pipeline_.Begin("data/shaders/final_scene/transform/screen_transform.vert",
-                               "data/shaders/final_scene/pbr/deferred_pbr.frag");
+  pbr_lighting_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                               "data/shaders/pbr/deferred_pbr.frag");
 
-  debug_lights_pipeline_.Begin("data/shaders/final_scene/transform/transform.vert",
-                               "data/shaders/final_scene/visual_debug/light_debug.frag");
+  debug_lights_pipeline_.Begin("data/shaders/transform/transform.vert",
+                               "data/shaders/visual_debug/light_debug.frag");
 
-  cubemap_pipeline_.Begin("data/shaders/final_scene/hdr/hdr_cubemap.vert",
-                          "data/shaders/final_scene/hdr/hdr_cubemap.frag");
+  cubemap_pipeline_.Begin("data/shaders/hdr/hdr_cubemap.vert",
+                          "data/shaders/hdr/hdr_cubemap.frag");
   
-  down_sample_pipeline_.Begin("data/shaders/final_scene/transform/screen_transform.vert",
-                              "data/shaders/final_scene/bloom/down_sample.frag");
-  up_sample_pipeline_.Begin("data/shaders/final_scene/transform/screen_transform.vert",
-                            "data/shaders/final_scene/bloom/up_sample.frag");
+  down_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                              "data/shaders/bloom/down_sample.frag");
+  up_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                            "data/shaders/bloom/up_sample.frag");
 
-  bloom_hdr_pipeline_.Begin("data/shaders/final_scene/transform/screen_transform.vert",
-                      "data/shaders/final_scene/hdr/hdr.frag");
+  bloom_hdr_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                      "data/shaders/hdr/hdr.frag");
 
   // Setup the sampler2D uniforms.
   // -----------------------------
@@ -833,7 +833,7 @@ void FinalScene::CreateMaterials() noexcept {
       LoadTexture("data/textures/pbr/gold/gold-scuffed_roughness.png",
                   GL_CLAMP_TO_EDGE, GL_LINEAR, false, false);
 
-  const auto ao_map = LoadTexture("data/textures/pbr/rusted_iron/ao.png",
+  const auto ao_map = LoadTexture("data/textures/pbr/gold/ao.png",
                                   GL_CLAMP_TO_EDGE, GL_LINEAR, false, false);
 
   gold_mat_.Create(albedo_map, normal_map, metallic_map, roughness_map, ao_map);
