@@ -4,10 +4,19 @@
 
 #include <imgui.h>
 
+#ifdef TRACY_ENABLE
+#include <TracyC.h>
+#include <Tracy.hpp>
+#endif  // TRACY_ENABLE
+
 #include <iostream>
 #include <random>
 
 void FinalScene::Begin() {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   CreatePipelines();
 
   CreateMeshes();

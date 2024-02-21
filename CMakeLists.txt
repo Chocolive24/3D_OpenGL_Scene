@@ -13,6 +13,18 @@ find_package(Stb REQUIRED)
 find_package(fmt CONFIG REQUIRED)
 find_package(assimp CONFIG REQUIRED)
 
+# Add a CMake option to enable or disable Tracy Profiler
+option(USE_TRACY "Use Tracy Profiler" OFF)
+
+if (USE_TRACY)
+    # Enable Tracy profiling by setting the preprocessor directive
+    add_compile_definitions(TRACY_ENABLE)
+    # Include Tracy's headers for the entire project
+    include_directories(externals/tracy_profiler/tracy)
+
+    # Add the Tracy source code as part of the project
+    add_library(tracyClient STATIC externals/tracy_profiler/TracyClient.cpp)
+endif()
 
 file(GLOB_RECURSE SHADER_FILES
         "data/*.vert"
@@ -94,6 +106,11 @@ set_target_properties(core PROPERTIES LINKER_LANGUAGE CXX)
 target_include_directories(core PUBLIC core/include/)
 target_link_libraries(core PUBLIC GLEW::GLEW glm::glm SDL2::SDL2 SDL2::SDL2main imgui::imgui fmt::fmt assimp::assimp)
 target_link_libraries(core PRIVATE common)
+if (USE_TRACY)
+    target_compile_definitions(core PUBLIC TRACY_ENABLE)
+    # Link the TracyClient library
+    target_link_libraries(core PRIVATE tracyClient)
+endif()
 
 file(GLOB_RECURSE ENGINE_FILES main/include/*.h main/src/*.cpp)
 add_library(scenes STATIC ${ENGINE_FILES} ${SHADER_FILES} ${SCENE_FILES})
