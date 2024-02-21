@@ -1,8 +1,15 @@
 #include "texture.h"
 #include "error.h"
+#include "file_utility.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+#ifdef TRACY_ENABLE
+#include <TracyC.h>
+
+#include <Tracy.hpp>
+#endif  // TRACY_ENABLE
 
 #include <iostream>
 
@@ -91,21 +98,37 @@ void Texture::Destroy() noexcept {
 
 GLuint LoadTexture(std::string_view path, GLint wrapping_param, 
                     GLint filtering_param, bool gamma, bool flip_y) { 
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
   // Load texture.
   int width, height, channels;
 
   stbi_set_flip_vertically_on_load(flip_y);
-  auto texture_data = stbi_load(path.data(), &width,
-                                &height, &channels, 0);
 
-  if (texture_data == nullptr) {
+#ifdef TRACY_ENABLE
+  ZoneNamedN(Read, "Read Texture File.", true);
+#endif
+
+  const FileBuffer file_buffer = file_utility::LoadFileBuffer(path.data());
+
+#ifdef TRACY_ENABLE
+  ZoneNamedN(UnCompress, "UnCompress Texture File.", true);
+#endif
+  const auto texture_uncompress = stbi_load_from_memory(file_buffer.data, 
+      file_buffer.size, &width, &height, &channels, 0);
+
+  if (texture_uncompress == nullptr) {
     std::cerr << "Error in loading the image at path " << path << '\n';
   }
 
-  std::cout << "Loaded image with a width of " << width
-            << "px, a height of " << height << "px, and "
-            << channels << "channels \n";
+  //std::cout << "Loaded image with a width of " << width
+  //          << "px, a height of " << height << "px, and "
+  //          << channels << "channels \n";
 
+#ifdef TRACY_ENABLE
+  ZoneNamedN(UploadTexToGPU, "Upload texture to GPU.", true);
+#endif
   // Give texture to GPU.
   GLuint texture;
   glGenTextures(1, &texture);
@@ -113,14 +136,11 @@ GLuint LoadTexture(std::string_view path, GLint wrapping_param,
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapping_param);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapping_param);
 
-  /*GLint min_filter_param = filtering_param == GL_LINEAR
-      ? GL_LINEAR_MIPMAP_LINEAR : filtering_param;*/
-
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering_param);
   glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering_param);
 
-  GLint internal_format;
-  GLenum format;
+  GLint internal_format = GL_RGB;
+  GLenum format = GL_RGB;
   if (channels == 1) {
     internal_format = GL_RED;
     format = GL_RED;
@@ -139,10 +159,10 @@ GLuint LoadTexture(std::string_view path, GLint wrapping_param,
   }
 
   glTexImage2D(GL_TEXTURE_2D, 0, internal_format, width, height, 0,
-               format, GL_UNSIGNED_BYTE, texture_data);
+               format, GL_UNSIGNED_BYTE, texture_uncompress);
   glGenerateMipmap(GL_TEXTURE_2D);
 
-  stbi_image_free(texture_data);
+  stbi_image_free(texture_uncompress);
 
   return texture;
 }

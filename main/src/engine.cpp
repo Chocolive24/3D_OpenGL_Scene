@@ -7,6 +7,10 @@
 #include <imgui_impl_opengl3.h>
 #include <imgui_impl_sdl2.h>
 
+#ifdef TRACY_ENABLE
+#include <Tracy.hpp>
+#endif  // TRACY_ENABLE
+
 #include <cassert>
 #include <chrono>
 
@@ -68,6 +72,10 @@ void Engine::Run() {
     ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
     SDL_GL_SwapWindow(window_);
+
+#ifdef TRACY_ENABLE
+    FrameMark;
+#endif
   }
   End();
 }

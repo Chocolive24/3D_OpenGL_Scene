@@ -11,12 +11,12 @@
 
 #include <iostream>
 #include <random>
+#include <thread>
 
 void FinalScene::Begin() {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
-
   CreatePipelines();
 
   CreateMeshes();
@@ -273,6 +273,10 @@ void FinalScene::DrawImGui() {
 }
 
 void FinalScene::CreatePipelines() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   equirect_to_cubemap_pipe_.Begin(
       "data/shaders/transform/local_transform.vert",
       "data/shaders/hdr/equirectangular_to_cubemap.frag");
@@ -393,6 +397,10 @@ void FinalScene::CreatePipelines() noexcept {
 }
 
 void FinalScene::CreateHdrCubemap() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
     const auto screen_size = Engine::window_size();
 
     const auto equirectangular_map = LoadHDR_Texture("data/textures/hdr/cape_hill_4k.hdr",
@@ -444,6 +452,10 @@ void FinalScene::CreateHdrCubemap() noexcept {
 }
 
 void FinalScene::CreateIrradianceCubeMap() noexcept {
+#ifdef TRACY_ENABLE
+    ZoneScoped;
+#endif  // TRACY_ENABLE
+
   glGenTextures(1, &irradiance_cubemap_);
   glBindTexture(GL_TEXTURE_CUBE_MAP, irradiance_cubemap_);
 
@@ -485,6 +497,10 @@ void FinalScene::CreateIrradianceCubeMap() noexcept {
 }
 
 void FinalScene::CreatePrefilterCubeMap() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   glGenTextures(1, &prefilter_cubemap_);
   glBindTexture(GL_TEXTURE_CUBE_MAP, prefilter_cubemap_);
 
@@ -540,6 +556,10 @@ void FinalScene::CreatePrefilterCubeMap() noexcept {
 }
 
 void FinalScene::CreateBrdfLut() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   glGenTextures(1, &brdf_lut_);
 
   // pre-allocate enough memory for the LUT texture.
@@ -567,6 +587,10 @@ void FinalScene::CreateBrdfLut() noexcept {
 }
 
 void FinalScene::CreateFrameBuffers() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   const auto screen_size = Engine::window_size();
 
   // IBL capture texture data framebuffer.
@@ -706,6 +730,10 @@ void FinalScene::CreateFrameBuffers() noexcept {
 }
 
 void FinalScene::CreateSsaoData() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   // generate sample kernel
   // ----------------------
   std::uniform_real_distribution<GLfloat> random_floats(0.0, 1.0);
@@ -749,6 +777,10 @@ void FinalScene::CreateSsaoData() noexcept {
 }
 
 void FinalScene::CreateMeshes() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   sphere_.CreateSphere();
 
   sphere_model_matrices_.reserve(kSphereCount_);
@@ -815,6 +847,9 @@ void FinalScene::CreateMeshes() noexcept {
 }
 
 void FinalScene::CreateModels() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
   leo_magnus_.Load("data/models/leo_magnus/leo_magnus.obj", true, false);
   leo_magnus_.GenerateModelSphereBoundingVolume();
   sword_.Load("data/models/leo_magnus/sword.obj", true, false);
@@ -826,6 +861,9 @@ void FinalScene::CreateModels() noexcept {
 }
 
 void FinalScene::CreateMaterials() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
   const auto albedo_map =
       LoadTexture("data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png", GL_CLAMP_TO_EDGE,
                   GL_LINEAR, true, false);
@@ -1054,6 +1092,10 @@ void FinalScene::ApplySsaoPass() noexcept {
 }
 
 void FinalScene::ApplyShadowMappingPass() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
   // Directional light shadow mapping.
   // ---------------------------------
 
