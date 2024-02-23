@@ -2,14 +2,17 @@
 #include "error.h"
 #include "file_utility.h"
 
+#ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
-#include <stb_image.h>
+#endif
+
 
 #ifdef TRACY_ENABLE
 #include <TracyC.h>
 
 #include <Tracy.hpp>
 #endif  // TRACY_ENABLE
+#include <stb_image.h>
 
 #include <iostream>
 
@@ -94,6 +97,80 @@ void Texture::Create(std::string_view path, GLint wrapping_param,
 void Texture::Destroy() noexcept { 
   glDeleteTextures(1, &id);
   id = 0;
+}
+
+ImageFileReadingJob::ImageFileReadingJob(std::string file_path, FileBuffer* file_buffer) noexcept
+    : Job(JobType::kFileReading), file_path(file_path), file_buffer(file_buffer) 
+{
+}
+
+ImageFileReadingJob::ImageFileReadingJob(ImageFileReadingJob&& other) noexcept : 
+    Job(std::move(other)) {
+  file_buffer = std::move(other.file_buffer);
+  file_path = std::move(other.file_path);
+
+  other.file_buffer = nullptr;
+}
+ImageFileReadingJob& ImageFileReadingJob::operator=(
+    ImageFileReadingJob&& other) noexcept {
+  file_buffer = std::move(other.file_buffer);
+  file_path = std::move(other.file_path);
+
+  other.file_buffer = nullptr;
+
+  return *this;
+}
+
+ImageFileReadingJob::~ImageFileReadingJob() { file_buffer = nullptr; }
+
+void ImageFileReadingJob::Work() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+  ZoneText(file_path.data(), file_path.size());
+#endif  // TRACY_ENABLE
+
+  file_utility::LoadFileInBuffer(file_path.data(), file_buffer);
+}
+
+ImageFileDecompressingJob::ImageFileDecompressingJob(
+    FileBuffer* file_buffer, TextureGpu* texture) noexcept
+    : Job(JobType::kFileDecompressing), file_buffer_(file_buffer), texture_(texture) 
+{
+}
+
+ImageFileDecompressingJob::ImageFileDecompressingJob(
+    ImageFileDecompressingJob&& other) noexcept
+    : Job(std::move(other)) {
+  file_buffer_ = std::move(other.file_buffer_);
+  texture_ = std::move(other.texture_);
+
+  other.file_buffer_ = nullptr;
+  other.texture_ = nullptr;
+}
+
+ImageFileDecompressingJob& ImageFileDecompressingJob::operator=(
+    ImageFileDecompressingJob&& other) noexcept {
+  file_buffer_ = std::move(other.file_buffer_);
+  texture_ = std::move(other.texture_);
+
+  other.file_buffer_ = nullptr;
+  other.texture_ = nullptr;
+
+  return *this;
+}
+
+ImageFileDecompressingJob::~ImageFileDecompressingJob() {
+  file_buffer_ = nullptr;
+  texture_ = nullptr;
+}
+
+void ImageFileDecompressingJob::Work() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+  texture_->data = stbi_load_from_memory(file_buffer_->data, file_buffer_->size,
+                                         &texture_->width, &texture_->height,
+                                         &texture_->channels, 0);
 }
 
 GLuint LoadTexture(std::string_view path, GLint wrapping_param, 

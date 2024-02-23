@@ -7,6 +7,7 @@
 #include "renderer.h"
 #include "frame_buffer_object.h"
 #include "bloom_frame_buffer_object.h"
+#include "job_system.h"
 
 #include <array>
 

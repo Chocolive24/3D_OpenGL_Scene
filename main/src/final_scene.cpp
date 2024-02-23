@@ -864,6 +864,53 @@ void FinalScene::CreateMaterials() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
+
+  constexpr std::int8_t texture_count = 5;
+
+  constexpr std::array<std::string_view, texture_count> texture_paths{
+    // Gold Material.
+    // --------------
+    "data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png",
+    "data/textures/pbr/gold/gold-scuffed_normal.png",
+    "data/textures/pbr/gold/gold-scuffed_metallic.png",
+    "data/textures/pbr/gold/gold-scuffed_roughness.png",
+    "data/textures/pbr/gold/ao.png",
+
+    // Leo Magnus' textures.
+    // ---------------------
+  };
+
+  std::array<FileBuffer, texture_count> file_buffers{};
+  std::array<TextureGpu, texture_count> textures{};
+
+  std::vector<ImageFileReadingJob> img_reading_jobs;
+  img_reading_jobs.reserve(texture_count);
+
+  std::vector<ImageFileDecompressingJob> img_decompressing_jobs;
+  img_decompressing_jobs.reserve(texture_count);
+
+  for (std::int8_t i = 0; i < texture_count; i++) {
+      img_reading_jobs.emplace_back(
+          ImageFileReadingJob(texture_paths[i].data(), &file_buffers[i]));
+
+      img_decompressing_jobs.emplace_back(
+          ImageFileDecompressingJob(&file_buffers[i], &textures[i]));
+
+      img_decompressing_jobs[i].AddDependency(&img_reading_jobs[i]);
+  }
+
+  JobSystem job_system;
+
+  for (auto& reading_job : img_reading_jobs) {
+      job_system.AddJob(&reading_job);
+  }
+
+  for (auto& decompressing_job : img_decompressing_jobs) {
+    job_system.AddJob(&decompressing_job);
+  }
+
+  job_system.LaunchWorkers(2);
+
   const auto albedo_map =
       LoadTexture("data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png", GL_CLAMP_TO_EDGE,
                   GL_LINEAR, true, false);
@@ -1017,6 +1064,8 @@ void FinalScene::CreateMaterials() noexcept {
   treasure_chest_textures_[2] =
       LoadTexture("data/models/treasure_chest/treasure_chest_arm_2k.jpg",
                   GL_REPEAT, GL_LINEAR, false, false);
+
+  job_system.JoinWorkers();
 }
 
 void FinalScene::ApplyGeometryPass() noexcept {
