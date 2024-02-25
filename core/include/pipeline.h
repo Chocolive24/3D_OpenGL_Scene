@@ -16,9 +16,6 @@ class Pipeline {
   void Begin(std::string_view vertex_path, std::string_view fragment_path) noexcept;
 
   void Bind() const noexcept;
-  void DrawMesh(const Mesh& mesh, GLenum mode = GL_TRIANGLES, 
-                GLuint start_tex_unit = 0) noexcept;
-  void DrawModel(const Model& model, GLuint start_tex_unit = 0) noexcept;
 
   void End() noexcept;
 

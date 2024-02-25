@@ -41,6 +41,8 @@ private:
 
   glm::mat4 model_, view_, projection_;
 
+  JobSystem job_system_;
+
   // IBL textures creation pipelines.
   // --------------------------------
   Pipeline equirect_to_cubemap_pipe_;
@@ -278,8 +280,7 @@ class LoadTextureToGpuJob final : public Job {
   LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept;
   LoadTextureToGpuJob& operator=(LoadTextureToGpuJob&& other) noexcept;
   LoadTextureToGpuJob(const LoadTextureToGpuJob& other) noexcept = delete;
-  LoadTextureToGpuJob& operator=(const LoadTextureToGpuJob& other) noexcept =
-      delete;
+  LoadTextureToGpuJob& operator=(const LoadTextureToGpuJob& other) noexcept = delete;
 
   ~LoadTextureToGpuJob() noexcept;
 
@@ -293,3 +294,25 @@ class LoadTextureToGpuJob final : public Job {
 
 // Other thread's jobs.
 // --------------------
+class FileReadingJob final : public Job {
+ public:
+  FileReadingJob(std::string file_path, FileBuffer* file_buffer) noexcept;
+
+  FileReadingJob(FileReadingJob&& other) noexcept;
+  FileReadingJob& operator=(FileReadingJob&& other) noexcept;
+  FileReadingJob(const FileReadingJob& other) noexcept = delete;
+  FileReadingJob& operator=(const FileReadingJob& other) noexcept = delete;
+
+  ~FileReadingJob() noexcept;
+
+  void Work() noexcept override;
+
+ private:
+  FileBuffer* file_buffer_ = nullptr;
+  std::string file_path_{};
+};
+
+class CreatingMeshJob final : public Job {
+ public:
+  void Work() noexcept override;
+};

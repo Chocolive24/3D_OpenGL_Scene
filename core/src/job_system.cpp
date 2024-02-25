@@ -103,7 +103,7 @@ void JobSystem::LaunchWorkers(int worker_count) noexcept {
     }
   }
 
-  RunMainThreadWorkLoop(loading_texture_to_gpu_jobs);
+  RunMainThreadWorkLoop(main_thread_jobs);
 }
 
 void JobSystem::RunMainThreadWorkLoop(std::vector<Job*>& jobs) noexcept {
@@ -134,8 +134,8 @@ void JobSystem::AddJob(Job* job) noexcept {
     case JobType::kFileDecompressing:
       img_decompressing_jobs_.push_back(std::move(job));
       break;
-    case JobType::kloadingTextureToGpu:
-      loading_texture_to_gpu_jobs.push_back(std::move(job));
+    case JobType::kMainThread:
+      main_thread_jobs.push_back(std::move(job));
       break;
     default:
       break;

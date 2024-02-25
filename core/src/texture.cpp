@@ -28,40 +28,6 @@ TextureParameters::TextureParameters(std::string_view path, GLint wrap_param,
 {
 };
 
-ImageFileReadingJob::ImageFileReadingJob(std::string file_path, FileBuffer* file_buffer) noexcept
-    : Job(JobType::kFileReading), file_path_(file_path), file_buffer_(file_buffer) 
-{
-}
-
-ImageFileReadingJob::ImageFileReadingJob(ImageFileReadingJob&& other) noexcept : 
-    Job(std::move(other)) {
-  file_buffer_ = std::move(other.file_buffer_);
-  file_path_ = std::move(other.file_path_);
-
-  other.file_buffer_ = nullptr;
-}
-ImageFileReadingJob& ImageFileReadingJob::operator=(
-    ImageFileReadingJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  file_buffer_ = std::move(other.file_buffer_);
-  file_path_ = std::move(other.file_path_);
-
-  other.file_buffer_ = nullptr;
-
-  return *this;
-}
-
-ImageFileReadingJob::~ImageFileReadingJob() { file_buffer_ = nullptr; }
-
-void ImageFileReadingJob::Work() noexcept {
-#ifdef TRACY_ENABLE
-  ZoneScoped;
-  ZoneText(file_path_.data(), file_path_.size());
-#endif  // TRACY_ENABLE
-
-  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_);
-}
-
 ImageFileDecompressingJob::ImageFileDecompressingJob(
     FileBuffer* file_buffer, ImageBuffer* texture, bool flip_y, bool hdr) noexcept
     : Job(JobType::kFileDecompressing),

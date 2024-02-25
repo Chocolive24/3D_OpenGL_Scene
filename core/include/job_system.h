@@ -18,7 +18,7 @@ enum class JobType : std::int8_t {
   kNone = -1,
   kFileReading,
   kFileDecompressing,
-  kloadingTextureToGpu,
+  kMainThread,
   kOther
 };
 
@@ -82,5 +82,5 @@ class JobSystem {
   // erasing those at the front.
   std::vector<Job*> img_reading_jobs_{};
   std::vector<Job*> img_decompressing_jobs_{};
-  std::vector<Job*> loading_texture_to_gpu_jobs{};
+  std::vector<Job*> main_thread_jobs{};
 };

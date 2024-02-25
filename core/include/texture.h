@@ -51,24 +51,6 @@ void LoadTextureToGpu(ImageBuffer* image_buffer, GLuint* id, const TextureParame
 //            Multithreading Jobs.
 // =============================================
 
-class ImageFileReadingJob final : public Job {
- public:
-  ImageFileReadingJob(std::string file_path, FileBuffer* file_buffer) noexcept;
-
-  ImageFileReadingJob(ImageFileReadingJob&& other) noexcept;
-  ImageFileReadingJob& operator=(ImageFileReadingJob&& other) noexcept;
-  ImageFileReadingJob(const ImageFileReadingJob& other) noexcept = delete;
-  ImageFileReadingJob& operator=(const ImageFileReadingJob& other) noexcept = delete;
-
-  ~ImageFileReadingJob() noexcept;
-
-  void Work() noexcept override;
-
- private:
-  FileBuffer* file_buffer_ = nullptr;
-  std::string file_path_{};
-};
-
 class ImageFileDecompressingJob final : public Job {
  public:
   ImageFileDecompressingJob(FileBuffer* file_buffer, ImageBuffer* texture, 

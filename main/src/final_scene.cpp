@@ -49,6 +49,8 @@ void FinalScene::Begin() {
   glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
   ApplyShadowMappingPass();
+
+  job_system_.JoinWorkers();
 }
 
 void FinalScene::End() {
@@ -839,7 +841,6 @@ void FinalScene::CreateMeshes() noexcept {
   // Generate bounding sphere volume to test intersection with the camera frustum.
   sphere_.GenerateBoundingSphere(); 
 
-  cube_.CreateCube();
   cube_.GenerateBoundingSphere();
 
   cubemap_mesh_.CreateCubeMap();
@@ -1017,7 +1018,7 @@ void FinalScene::CreateMaterials() noexcept {
 
   // Job vectors.
   // ------------
-  std::vector<ImageFileReadingJob> img_reading_jobs;
+  std::vector<FileReadingJob> img_reading_jobs;
   img_reading_jobs.reserve(texture_count);
 
   std::vector<ImageFileDecompressingJob> img_decompressing_jobs;
@@ -1032,7 +1033,7 @@ void FinalScene::CreateMaterials() noexcept {
 
     // Image files reading job.
     // ------------------------
-    img_reading_jobs.emplace_back(ImageFileReadingJob(tex_param.image_file_path, &file_buffers[i]));
+    img_reading_jobs.emplace_back(FileReadingJob(tex_param.image_file_path, &file_buffers[i]));
 
     // Image files decompressing job.
     // ------------------------------
@@ -1049,23 +1050,19 @@ void FinalScene::CreateMaterials() noexcept {
     load_tex_to_gpu_jobs[i].AddDependency(&img_decompressing_jobs[i]);
   }
 
-  JobSystem job_system;
-
   for (auto& reading_job : img_reading_jobs) {
-      job_system.AddJob(&reading_job);
+      job_system_.AddJob(&reading_job);
   }
 
   for (auto& decompressing_job : img_decompressing_jobs) {
-    job_system.AddJob(&decompressing_job);
+    job_system_.AddJob(&decompressing_job);
   }
 
   for (auto& load_tex_to_gpu : load_tex_to_gpu_jobs) {
-    job_system.AddJob(&load_tex_to_gpu);
+    job_system_.AddJob(&load_tex_to_gpu);
   }
 
-  job_system.LaunchWorkers(2);
-
-  job_system.JoinWorkers();
+  job_system_.LaunchWorkers(2);
 }
 
 void FinalScene::ApplyGeometryPass() noexcept {
@@ -1713,7 +1710,6 @@ void FinalScene::DestroyFrameBuffers() noexcept {
 
 void FinalScene::DestroyMeshes() noexcept {
   sphere_.Destroy();
-  cube_.Destroy();
   cubemap_mesh_.Destroy();
   screen_quad_.Destroy();
 }
@@ -1745,18 +1741,11 @@ void FinalScene::DestroyMaterials() noexcept {
 LoadTextureToGpuJob::LoadTextureToGpuJob(ImageBuffer* image_buffer,
                                          GLuint* texture_id,
                                          const TextureParameters& tex_param) noexcept
-  : Job(JobType::kloadingTextureToGpu), 
+  : Job(JobType::kMainThread), 
     image_buffer_(image_buffer),
     texture_id_(texture_id),
     texture_param_(tex_param)
 {
-}
-
-void LoadTextureToGpuJob::Work() noexcept { 
-#ifdef TRACY_ENABLE
-  ZoneScoped;
-#endif  // TRACY_ENABLE
-  LoadTextureToGpu(image_buffer_, texture_id_, texture_param_);
 }
 
 LoadTextureToGpuJob::LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept :
@@ -1777,4 +1766,45 @@ LoadTextureToGpuJob& LoadTextureToGpuJob::operator=(
 LoadTextureToGpuJob::~LoadTextureToGpuJob() noexcept {
   image_buffer_ = nullptr;
   texture_id_ = nullptr;
+}
+
+void LoadTextureToGpuJob::Work() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+  LoadTextureToGpu(image_buffer_, texture_id_, texture_param_);
+}
+
+FileReadingJob::FileReadingJob(std::string file_path,
+                               FileBuffer* file_buffer) noexcept
+    : Job(JobType::kFileReading),
+      file_path_(file_path),
+      file_buffer_(file_buffer) {}
+
+FileReadingJob::FileReadingJob(FileReadingJob&& other) noexcept
+    : Job(std::move(other)) {
+  file_buffer_ = std::move(other.file_buffer_);
+  file_path_ = std::move(other.file_path_);
+
+  other.file_buffer_ = nullptr;
+}
+FileReadingJob& FileReadingJob::operator=(FileReadingJob&& other) noexcept {
+  Job::operator=(std::move(other));
+  file_buffer_ = std::move(other.file_buffer_);
+  file_path_ = std::move(other.file_path_);
+
+  other.file_buffer_ = nullptr;
+
+  return *this;
+}
+
+FileReadingJob::~FileReadingJob() { file_buffer_ = nullptr; }
+
+void FileReadingJob::Work() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+  ZoneText(file_path_.data(), file_path_.size());
+#endif  // TRACY_ENABLE
+
+  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_);
 }
