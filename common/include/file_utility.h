@@ -2,7 +2,7 @@
 
 #include <string_view>
 
-class FileBuffer {
+struct FileBuffer {
  public:
   FileBuffer() noexcept = default;
   FileBuffer(FileBuffer&& other) noexcept;
@@ -13,8 +13,6 @@ class FileBuffer {
 
   unsigned char* data = nullptr;
   int size = 0;
-
-  void Destroy() noexcept;
 };
 
 namespace file_utility {

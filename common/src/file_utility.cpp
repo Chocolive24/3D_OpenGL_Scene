@@ -20,9 +20,7 @@ FileBuffer& FileBuffer::operator=(FileBuffer&& other) noexcept {
   return *this;
 }
 
-FileBuffer::~FileBuffer() { Destroy(); }
-
-void FileBuffer::Destroy() noexcept {
+FileBuffer::~FileBuffer() {
   if (data != nullptr) {
     delete[] data;
     data = nullptr;

@@ -57,8 +57,7 @@ void Engine::Run() {
       ImGui_ImplSDL2_ProcessEvent(&event);
     }
     glClearColor(clear_color_.r, clear_color_.g, clear_color_.b, 0);
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT |
-            GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
     scene_->Update(dt.count());
 

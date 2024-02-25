@@ -267,9 +267,9 @@ void FinalScene::DrawImGui() {
     } else {
       camera_.ChangeMouseInputsEnability(true);
     }
-
-    ImGui::End();
   }
+
+  ImGui::End();
 }
 
 void FinalScene::CreatePipelines() noexcept {
@@ -403,8 +403,8 @@ void FinalScene::CreateHdrCubemap() noexcept {
 
     const auto screen_size = Engine::window_size();
 
-    const auto equirectangular_map = LoadHDR_Texture("data/textures/hdr/cape_hill_4k.hdr",
-                                                     GL_CLAMP_TO_EDGE, GL_LINEAR);
+    //const auto equirectangular_map = LoadHDR_Texture("data/textures/hdr/cape_hill_4k.hdr",
+    //                                                 GL_CLAMP_TO_EDGE, GL_LINEAR);
 
     glGenTextures(1, &env_cubemap_);
     glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap_);
@@ -426,7 +426,7 @@ void FinalScene::CreateHdrCubemap() noexcept {
     equirect_to_cubemap_pipe_.SetMatrix4("transform.projection",
                                          capture_projection_);
     glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, equirectangular_map);
+    glBindTexture(GL_TEXTURE_2D, equirectangular_map_);
 
     capture_fbo_.Bind();
     capture_fbo_.Resize(glm::uvec2(kSkyboxResolution));
@@ -448,7 +448,7 @@ void FinalScene::CreateHdrCubemap() noexcept {
     glBindTexture(GL_TEXTURE_CUBE_MAP, env_cubemap_);
     glGenerateMipmap(GL_TEXTURE_CUBE_MAP);
 
-    glDeleteTextures(1, &equirectangular_map);
+    //glDeleteTextures(1, &equirectangular_map_);
 }
 
 void FinalScene::CreateIrradianceCubeMap() noexcept {
@@ -854,9 +854,11 @@ void FinalScene::CreateModels() noexcept {
   leo_magnus_.GenerateModelSphereBoundingVolume();
   sword_.Load("data/models/leo_magnus/sword.obj", true, false);
   sword_.GenerateModelSphereBoundingVolume();
-  sandstone_platform_.Load("data/models/sandstone_platform/sandstone-platform1.obj", true, false);
+  sandstone_platform_.Load(
+      "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
   sandstone_platform_.GenerateModelSphereBoundingVolume();
-  treasure_chest_.Load("data/models/treasure_chest/treasure_chest_2k.obj");
+  treasure_chest_.Load("data/models/treasure_chest/treasure_chest_2k.obj", true,
+                       true);
   treasure_chest_.GenerateModelSphereBoundingVolume();
 }
 
@@ -865,7 +867,7 @@ void FinalScene::CreateMaterials() noexcept {
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
-  constexpr std::int8_t texture_count = 25;
+  constexpr std::int8_t texture_count = 38;
 
   std::array<FileBuffer, texture_count> file_buffers{};
   std::array<ImageBuffer, texture_count> image_buffers{};
@@ -942,6 +944,44 @@ void FinalScene::CreateMaterials() noexcept {
     TextureParameters(
           "data/models/leo_magnus/leo_magnus_low_petite_armure_Emissive.png",
           GL_REPEAT, GL_LINEAR, true, true),
+
+    // Sword textures.
+    // ---------------
+    TextureParameters("data/models/leo_magnus/epee_low_1001_BaseColor.png",
+      GL_REPEAT, GL_LINEAR, true, true),
+    TextureParameters("data/models/leo_magnus/epee_low_1001_Normal.png",
+      GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/epee_low_1001_OcclusionRoughnessMetallic.png", 
+      GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/epee_low_1001_Emissive.png", 
+      GL_REPEAT, GL_LINEAR, true, true),
+
+    // Sandstone platform textures.
+    // ----------------------------
+    TextureParameters("data/models/sandstone_platform/sandstone-platform1-albedo.png", 
+      GL_REPEAT, GL_LINEAR, true, true),
+    TextureParameters("data/models/sandstone_platform/sandstone-platform1-normal_ogl.png", 
+      GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/sandstone_platform/sandstone-platform1-metallic.png", 
+      GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/sandstone_platform/sandstone-platform1-roughness.png", 
+      GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/sandstone_platform/sandstone-platform1-ao.png", 
+      GL_REPEAT, GL_LINEAR, false, true),
+
+    // Treasure chest textures.
+    // ------------------------
+    TextureParameters("data/models/treasure_chest/treasure_chest_diff_2k.jpg",
+      GL_REPEAT, GL_LINEAR, true, false),
+    TextureParameters("data/models/treasure_chest/treasure_chest_nor_gl_2k.jpg",
+      GL_REPEAT, GL_LINEAR, false, false),
+    TextureParameters("data/models/treasure_chest/treasure_chest_arm_2k.jpg",
+      GL_REPEAT, GL_LINEAR, false, false),
+
+    // HDR equirectangle map.
+    // ----------------------
+    TextureParameters("data/textures/hdr/cape_hill_4k.hdr", 
+      GL_CLAMP_TO_EDGE, GL_LINEAR, false, true, true),
   };
 
   std::array<GLuint*, texture_count> texture_ids { 
@@ -954,8 +994,26 @@ void FinalScene::CreateMaterials() noexcept {
 
   leo_magnus_textures_.resize(20, 0);
   for (int i = 0; i < leo_magnus_textures_.size(); i++) {
-      texture_ids[i + 5] = &leo_magnus_textures_[i];
+    texture_ids[i + 5] = &leo_magnus_textures_[i];
   }
+
+  sword_textures_.resize(4, 0);
+  for (int i = 0; i < sword_textures_.size(); i++) {
+    texture_ids[i + 25] = &sword_textures_[i];
+  }
+
+  texture_ids[29] = &sandstone_platform_mat_.albedo_map;
+  texture_ids[30] = &sandstone_platform_mat_.normal_map;
+  texture_ids[31] = &sandstone_platform_mat_.metallic_map;
+  texture_ids[32] = &sandstone_platform_mat_.roughness_map;
+  texture_ids[33] = &sandstone_platform_mat_.ao_map;
+
+  treasure_chest_textures_.resize(3, 0);
+  for (int i = 0; i < treasure_chest_textures_.size(); i++) {
+    texture_ids[i + 34] = &treasure_chest_textures_[i];
+  }
+
+  texture_ids[37] = &equirectangular_map_;
 
   // Job vectors.
   // ------------
@@ -979,15 +1037,14 @@ void FinalScene::CreateMaterials() noexcept {
     // Image files decompressing job.
     // ------------------------------
     img_decompressing_jobs.emplace_back(ImageFileDecompressingJob(
-        &file_buffers[i], &image_buffers[i], tex_param.flipped_y));
+        &file_buffers[i], &image_buffers[i], tex_param.flipped_y, tex_param.hdr));
 
     img_decompressing_jobs[i].AddDependency(&img_reading_jobs[i]);
 
     // Texture loading to GPU job.
     // ---------------------------
     load_tex_to_gpu_jobs.emplace_back(LoadTextureToGpuJob(
-        &image_buffers[i], texture_ids[i], tex_param.wrapping_param,
-        tex_param.filtering_param, tex_param.gamma_corrected));
+        &image_buffers[i], texture_ids[i], tex_param));
 
     load_tex_to_gpu_jobs[i].AddDependency(&img_decompressing_jobs[i]);
   }
@@ -1007,59 +1064,6 @@ void FinalScene::CreateMaterials() noexcept {
   }
 
   job_system.LaunchWorkers(2);
-
-  // Sword textures.
-  // ---------------
-  sword_textures_.resize(4, 0);
-  sword_textures_[0] =
-      LoadTexture("data/models/leo_magnus/epee_low_1001_BaseColor.png", 
-          GL_REPEAT, GL_LINEAR, true, true);
-  sword_textures_[1] = LoadTexture(
-      "data/models/leo_magnus/epee_low_1001_Normal.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  sword_textures_[2] = LoadTexture(
-      "data/models/leo_magnus/epee_low_1001_OcclusionRoughnessMetallic.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  sword_textures_[3] = LoadTexture(
-      "data/models/leo_magnus/epee_low_1001_Emissive.png",
-      GL_REPEAT, GL_LINEAR, true, true);
-
-  // Sandstone platform textures.
-  // ----------------------------
-  const auto sp_albedo_map =
-      LoadTexture("data/models/sandstone_platform/sandstone-platform1-albedo.png",
-                  GL_REPEAT, GL_LINEAR, true, true);
-
-  const auto sp_normal_map =
-      LoadTexture("data/models/sandstone_platform/sandstone-platform1-normal_ogl.png",
-      GL_REPEAT, GL_LINEAR, false, true);
-
-  const auto sp_metallic_map =
-      LoadTexture("data/models/sandstone_platform/sandstone-platform1-metallic.png",
-      GL_REPEAT, GL_LINEAR, false, true);
-
-  const auto sp_roughness_map =
-      LoadTexture("data/models/sandstone_platform/sandstone-platform1-roughness.png",
-      GL_REPEAT, GL_LINEAR, false, true);
-
-  const auto sp_ao_map = LoadTexture("data/models/sandstone_platform/sandstone-platform1-ao.png",
-                  GL_REPEAT, GL_LINEAR, false, true);
-
-  sandstone_platform_mat_.Create(sp_albedo_map, sp_normal_map, sp_metallic_map,
-                          sp_roughness_map, sp_ao_map);
-
-  // Treasure chest textures.
-  // ------------------------
-  treasure_chest_textures_.resize(3, 0);
-  treasure_chest_textures_[0] =
-      LoadTexture("data/models/treasure_chest/treasure_chest_diff_2k.jpg",
-                  GL_REPEAT, GL_LINEAR, true, false);
-  treasure_chest_textures_[1] =
-      LoadTexture("data/models/treasure_chest/treasure_chest_nor_gl_2k.jpg",
-                  GL_REPEAT, GL_LINEAR, false, false);
-  treasure_chest_textures_[2] =
-      LoadTexture("data/models/treasure_chest/treasure_chest_arm_2k.jpg",
-                  GL_REPEAT, GL_LINEAR, false, false);
 
   job_system.JoinWorkers();
 }
@@ -1691,6 +1695,7 @@ void FinalScene::DestroyPipelines() noexcept {
 }
 
 void FinalScene::DestroyIblPreComputedCubeMaps() noexcept {
+  glDeleteTextures(1, &equirectangular_map_);
   glDeleteTextures(1, &env_cubemap_);
   glDeleteTextures(1, &irradiance_cubemap_);
   glDeleteTextures(1, &prefilter_cubemap_);
@@ -1739,15 +1744,11 @@ void FinalScene::DestroyMaterials() noexcept {
 
 LoadTextureToGpuJob::LoadTextureToGpuJob(ImageBuffer* image_buffer,
                                          GLuint* texture_id,
-                                         GLint wrapping_param,
-                                         GLint filtering_param,
-                                         bool gamma) noexcept
+                                         const TextureParameters& tex_param) noexcept
   : Job(JobType::kloadingTextureToGpu), 
     image_buffer_(image_buffer),
     texture_id_(texture_id),
-    wrapping_param_(wrapping_param), 
-    filtering_param_(filtering_param), 
-    gamma_corrected_(gamma) 
+    texture_param_(tex_param)
 {
 }
 
@@ -1755,6 +1756,25 @@ void LoadTextureToGpuJob::Work() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
-  LoadTextureToGpu(image_buffer_, texture_id_, wrapping_param_,
-                   filtering_param_, gamma_corrected_);
+  LoadTextureToGpu(image_buffer_, texture_id_, texture_param_);
+}
+
+LoadTextureToGpuJob::LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept :
+    Job(std::move(other)) {
+  image_buffer_ = std::move(other.image_buffer_);
+  texture_id_ = std::move(other.texture_id_);
+  texture_param_ = other.texture_param_;
+}
+
+LoadTextureToGpuJob& LoadTextureToGpuJob::operator=(
+    LoadTextureToGpuJob&& other) noexcept {
+  Job::operator=(std::move(other));
+  image_buffer_ = std::move(other.image_buffer_);
+  texture_id_ = std::move(other.texture_id_);
+  texture_param_ = other.texture_param_;
+}
+
+LoadTextureToGpuJob::~LoadTextureToGpuJob() noexcept {
+  image_buffer_ = nullptr;
+  texture_id_ = nullptr;
 }

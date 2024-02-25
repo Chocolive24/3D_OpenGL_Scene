@@ -113,6 +113,7 @@ private:
   static constexpr std::uint8_t kPrefilterMapResolution = 128;
   static constexpr std::uint16_t kBrdfLutResolution = 512;
 
+  GLuint equirectangular_map_;
   GLuint env_cubemap_;
   GLuint irradiance_cubemap_;
   GLuint prefilter_cubemap_;
@@ -262,22 +263,33 @@ private:
 };
 
 // ===================================================================================
-// Main thread Jobs.
-// These jobs are dependent of the OpenGL context so they have 
-// to be executed by the main thread.
+//                              Multithreading.
 // ===================================================================================
 
+// Main thread's jobs.
+// These jobs are dependent of the OpenGL context so they have
+// to be executed by the main thread.
+// ----------------------------------
 class LoadTextureToGpuJob final : public Job {
  public:
-  LoadTextureToGpuJob(ImageBuffer* image_buffer, GLuint* texture_id, GLint wrapping_param,
-                      GLint filtering_param, bool gamma) noexcept;
+  LoadTextureToGpuJob(ImageBuffer* image_buffer, GLuint* texture_id, 
+                      const TextureParameters& tex_param) noexcept;
+
+  LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept;
+  LoadTextureToGpuJob& operator=(LoadTextureToGpuJob&& other) noexcept;
+  LoadTextureToGpuJob(const LoadTextureToGpuJob& other) noexcept = delete;
+  LoadTextureToGpuJob& operator=(const LoadTextureToGpuJob& other) noexcept =
+      delete;
+
+  ~LoadTextureToGpuJob() noexcept;
 
   void Work() noexcept override;
 
  private:
   ImageBuffer* image_buffer_ = nullptr;
   GLuint* texture_id_ = nullptr;
-  GLint wrapping_param_ = GL_REPEAT;
-  GLint filtering_param_ = GL_LINEAR;
-  bool gamma_corrected_ = false;
+  TextureParameters texture_param_;
 };
+
+// Other thread's jobs.
+// --------------------
