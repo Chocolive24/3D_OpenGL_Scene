@@ -865,38 +865,131 @@ void FinalScene::CreateMaterials() noexcept {
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
-  constexpr std::int8_t texture_count = 5;
+  constexpr std::int8_t texture_count = 25;
 
-  constexpr std::array<std::string_view, texture_count> texture_paths{
+  std::array<FileBuffer, texture_count> file_buffers{};
+  std::array<ImageBuffer, texture_count> image_buffers{};
+
+  std::array<TextureParameters, texture_count> texture_inputs{
     // Gold Material.
     // --------------
-    "data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png",
-    "data/textures/pbr/gold/gold-scuffed_normal.png",
-    "data/textures/pbr/gold/gold-scuffed_metallic.png",
-    "data/textures/pbr/gold/gold-scuffed_roughness.png",
-    "data/textures/pbr/gold/ao.png",
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png", GL_CLAMP_TO_EDGE, GL_LINEAR, true, false),
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_normal.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_metallic.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_roughness.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
+    TextureParameters("data/textures/pbr/gold/ao.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
 
     // Leo Magnus' textures.
     // ---------------------
+    // Grosse armure.
+    // --------------
+    TextureParameters("data/models/leo_magnus/leo_magnus_low_grosse_armure_BaseColor.png", GL_REPEAT, GL_LINEAR, true, true),
+    TextureParameters("data/models/leo_magnus/leo_magnus_low_grosse_armure_Normal.png", GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_grosse_armure_OcclusionRoughnessMetallic.png",
+          GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/no_emissive.jpg", GL_REPEAT,
+                        GL_LINEAR, false, true),
+    // Cape.
+    // -----
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_cape_BaseColor.png", GL_REPEAT,
+          GL_LINEAR, true, true),
+    TextureParameters("data/models/leo_magnus/leo_magnus_low_cape_Normal.png",
+                        GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/"
+                        "leo_magnus_low_cape_OcclusionRoughnessMetallic.png",
+                        GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/no_emissive.jpg", GL_REPEAT,
+                        GL_LINEAR, false, true),
+    // Tete.
+    // -----
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_tete_BaseColor.png", GL_REPEAT,
+          GL_LINEAR, true, true),
+    TextureParameters("data/models/leo_magnus/leo_magnus_low_tete_Normal.png",
+                        GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/"
+                        "leo_magnus_low_tete_OcclusionRoughnessMetallic.png",
+                        GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_tete_Emissive.png", GL_REPEAT,
+          GL_LINEAR, true, true),
+    // Pilosite.
+    // --------------
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_pilosite_BaseColor.png",
+          GL_REPEAT, GL_LINEAR, true, true),
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_pilosite_Normal.png",
+          GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/"
+          "leo_magnus_low_pilosite_OcclusionRoughnessMetallic.png",
+          GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/no_emissive.jpg", GL_REPEAT,
+                        GL_LINEAR, false, true),
+    // Petite armure.
+    // --------------
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_petite_armure_BaseColor.png",
+          GL_REPEAT, GL_LINEAR, true, true),
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_petite_armure_Normal.png",
+          GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters("data/models/leo_magnus/"
+          "leo_magnus_low_petite_armure_OcclusionRoughnessMetallic.png",
+          GL_REPEAT, GL_LINEAR, false, true),
+    TextureParameters(
+          "data/models/leo_magnus/leo_magnus_low_petite_armure_Emissive.png",
+          GL_REPEAT, GL_LINEAR, true, true),
   };
 
-  std::array<FileBuffer, texture_count> file_buffers{};
-  std::array<TextureGpu, texture_count> textures{};
+  std::array<GLuint*, texture_count> texture_ids { 
+    &gold_mat_.albedo_map,
+    &gold_mat_.normal_map,
+    &gold_mat_.metallic_map,
+    &gold_mat_.roughness_map,
+    &gold_mat_.ao_map,
+  };
 
+  leo_magnus_textures_.resize(20, 0);
+  for (int i = 0; i < leo_magnus_textures_.size(); i++) {
+      texture_ids[i + 5] = &leo_magnus_textures_[i];
+  }
+
+  // Job vectors.
+  // ------------
   std::vector<ImageFileReadingJob> img_reading_jobs;
   img_reading_jobs.reserve(texture_count);
 
   std::vector<ImageFileDecompressingJob> img_decompressing_jobs;
   img_decompressing_jobs.reserve(texture_count);
 
+  std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs;
+  load_tex_to_gpu_jobs.reserve(texture_count);
+
+  // For loop that creates all the jobs used to create textures for materials.
   for (std::int8_t i = 0; i < texture_count; i++) {
-      img_reading_jobs.emplace_back(
-          ImageFileReadingJob(texture_paths[i].data(), &file_buffers[i]));
+    const auto& tex_param = texture_inputs[i];
 
-      img_decompressing_jobs.emplace_back(
-          ImageFileDecompressingJob(&file_buffers[i], &textures[i]));
+    // Image files reading job.
+    // ------------------------
+    img_reading_jobs.emplace_back(ImageFileReadingJob(tex_param.image_file_path, &file_buffers[i]));
 
-      img_decompressing_jobs[i].AddDependency(&img_reading_jobs[i]);
+    // Image files decompressing job.
+    // ------------------------------
+    img_decompressing_jobs.emplace_back(ImageFileDecompressingJob(
+        &file_buffers[i], &image_buffers[i], tex_param.flipped_y));
+
+    img_decompressing_jobs[i].AddDependency(&img_reading_jobs[i]);
+
+    // Texture loading to GPU job.
+    // ---------------------------
+    load_tex_to_gpu_jobs.emplace_back(LoadTextureToGpuJob(
+        &image_buffers[i], texture_ids[i], tex_param.wrapping_param,
+        tex_param.filtering_param, tex_param.gamma_corrected));
+
+    load_tex_to_gpu_jobs[i].AddDependency(&img_decompressing_jobs[i]);
   }
 
   JobSystem job_system;
@@ -909,108 +1002,11 @@ void FinalScene::CreateMaterials() noexcept {
     job_system.AddJob(&decompressing_job);
   }
 
+  for (auto& load_tex_to_gpu : load_tex_to_gpu_jobs) {
+    job_system.AddJob(&load_tex_to_gpu);
+  }
+
   job_system.LaunchWorkers(2);
-
-  const auto albedo_map =
-      LoadTexture("data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png", GL_CLAMP_TO_EDGE,
-                  GL_LINEAR, true, false);
-
-  const auto normal_map =
-      LoadTexture("data/textures/pbr/gold/gold-scuffed_normal.png", GL_CLAMP_TO_EDGE,
-                  GL_LINEAR, false, false);
-
-  const auto metallic_map =
-      LoadTexture("data/textures/pbr/gold/gold-scuffed_metallic.png",
-                  GL_CLAMP_TO_EDGE, GL_LINEAR, false, false);
-
-  const auto roughness_map =
-      LoadTexture("data/textures/pbr/gold/gold-scuffed_roughness.png",
-                  GL_CLAMP_TO_EDGE, GL_LINEAR, false, false);
-
-  const auto ao_map = LoadTexture("data/textures/pbr/gold/ao.png",
-                                  GL_CLAMP_TO_EDGE, GL_LINEAR, false, false);
-
-  gold_mat_.Create(albedo_map, normal_map, metallic_map, roughness_map, ao_map);
-
-  // Leo magnus textures.
-  // --------------------
-  leo_magnus_textures_.resize(20, 0);
-
-  // Low grosse armure.
-  // ------------------
-  leo_magnus_textures_[0] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_grosse_armure_BaseColor.png", 
-      GL_REPEAT, GL_LINEAR, true, true);
-  leo_magnus_textures_[1] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_grosse_armure_Normal.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[2] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_grosse_armure_OcclusionRoughnessMetallic.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[3] = LoadTexture(
-      "data/models/leo_magnus/no_emissive.jpg",
-      GL_REPEAT, GL_LINEAR, true, true);
-
-  // Low cape.
-  // ---------
-  leo_magnus_textures_[4] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_cape_BaseColor.png", 
-      GL_REPEAT, GL_LINEAR, true, true);
-  leo_magnus_textures_[5] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_cape_Normal.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[6] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_cape_OcclusionRoughnessMetallic.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[7] = LoadTexture(
-      "data/models/leo_magnus/no_emissive.jpg",
-      GL_REPEAT, GL_LINEAR, true, true);
-
-  // Low tete.
-  // ---------
-  leo_magnus_textures_[8] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_tete_BaseColor.png", 
-      GL_REPEAT, GL_LINEAR, true, true);
-  leo_magnus_textures_[9] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_tete_Normal.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[10] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_tete_OcclusionRoughnessMetallic.png",
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[11] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_tete_Emissive.png",
-      GL_REPEAT, GL_LINEAR, true, true);
-
-  // Low pilosite.
-  // -------------
-  leo_magnus_textures_[12] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_pilosite_BaseColor.png", 
-      GL_REPEAT, GL_LINEAR, true, true);
-  leo_magnus_textures_[13] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_pilosite_Normal.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[14] = LoadTexture(
-      "data/models/leo_magnus/"
-      "leo_magnus_low_pilosite_OcclusionRoughnessMetallic.png",
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[15] = LoadTexture(
-      "data/models/leo_magnus/no_emissive.jpg",
-      GL_REPEAT, GL_LINEAR, true, true);
-
-  // Low petite armure.
-  // ------------------
-  leo_magnus_textures_[16] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_petite_armure_BaseColor.png", 
-      GL_REPEAT, GL_LINEAR, true, true);
-  leo_magnus_textures_[17] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_petite_armure_Normal.png", 
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[18] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_petite_armure_OcclusionRoughnessMetallic.png",
-      GL_REPEAT, GL_LINEAR, false, true);
-  leo_magnus_textures_[19] = LoadTexture(
-      "data/models/leo_magnus/leo_magnus_low_petite_armure_Emissive.png",
-      GL_REPEAT, GL_LINEAR, true, true);
 
   // Sword textures.
   // ---------------
@@ -1739,4 +1735,26 @@ void FinalScene::DestroyMaterials() noexcept {
   for (auto& tex : treasure_chest_textures_) {
     glDeleteTextures(1, &tex);
   }
+}
+
+LoadTextureToGpuJob::LoadTextureToGpuJob(ImageBuffer* image_buffer,
+                                         GLuint* texture_id,
+                                         GLint wrapping_param,
+                                         GLint filtering_param,
+                                         bool gamma) noexcept
+  : Job(JobType::kloadingTextureToGpu), 
+    image_buffer_(image_buffer),
+    texture_id_(texture_id),
+    wrapping_param_(wrapping_param), 
+    filtering_param_(filtering_param), 
+    gamma_corrected_(gamma) 
+{
+}
+
+void LoadTextureToGpuJob::Work() noexcept { 
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+  LoadTextureToGpu(image_buffer_, texture_id_, wrapping_param_,
+                   filtering_param_, gamma_corrected_);
 }

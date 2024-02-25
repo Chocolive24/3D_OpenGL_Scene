@@ -260,3 +260,24 @@ private:
 
   void DestroyFrameBuffers() noexcept;
 };
+
+// ===================================================================================
+// Main thread Jobs.
+// These jobs are dependent of the OpenGL context so they have 
+// to be executed by the main thread.
+// ===================================================================================
+
+class LoadTextureToGpuJob final : public Job {
+ public:
+  LoadTextureToGpuJob(ImageBuffer* image_buffer, GLuint* texture_id, GLint wrapping_param,
+                      GLint filtering_param, bool gamma) noexcept;
+
+  void Work() noexcept override;
+
+ private:
+  ImageBuffer* image_buffer_ = nullptr;
+  GLuint* texture_id_ = nullptr;
+  GLint wrapping_param_ = GL_REPEAT;
+  GLint filtering_param_ = GL_LINEAR;
+  bool gamma_corrected_ = false;
+};

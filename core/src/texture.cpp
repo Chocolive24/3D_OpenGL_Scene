@@ -133,9 +133,11 @@ void ImageFileReadingJob::Work() noexcept {
 }
 
 ImageFileDecompressingJob::ImageFileDecompressingJob(
-    FileBuffer* file_buffer, TextureGpu* texture) noexcept
-    : Job(JobType::kFileDecompressing), file_buffer_(file_buffer), texture_(texture) 
-{
+    FileBuffer* file_buffer, ImageBuffer* texture, bool flip_y) noexcept
+    : Job(JobType::kFileDecompressing),
+      file_buffer_(file_buffer),
+      texture_(texture),
+      flip_y_(flip_y) {
 }
 
 ImageFileDecompressingJob::ImageFileDecompressingJob(
@@ -168,6 +170,8 @@ void ImageFileDecompressingJob::Work() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
+
+  stbi_set_flip_vertically_on_load(flip_y_);
   texture_->data = stbi_load_from_memory(file_buffer_->data, file_buffer_->size,
                                          &texture_->width, &texture_->height,
                                          &texture_->channels, 0);
@@ -317,4 +321,46 @@ GLuint LoadCubeMap(const std::array<std::string, 6>& faces, GLint wrapping_param
   glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, wrapping_param);
 
   return texture_id;
+}
+
+void LoadTextureToGpu(ImageBuffer* image_buffer, GLuint* id, GLint wrapping_param,
+                      GLint filtering_param, bool gamma)  noexcept {
+  glGenTextures(1, id);
+  glBindTexture(GL_TEXTURE_2D, *id);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, wrapping_param);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, wrapping_param);
+
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, filtering_param);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, filtering_param);
+
+  GLint internal_format = GL_RGB;
+  GLenum format = GL_RGB;
+
+  switch (image_buffer->channels) { 
+    case 1:
+      internal_format = GL_RED;
+      format = GL_RED;
+      break;
+    case 2:
+      internal_format = GL_RG;
+      format = GL_RG;
+      break;
+    case 3:
+      internal_format = gamma ? GL_SRGB : GL_RGB;
+      format = GL_RGB;
+      break;
+    case 4:
+      internal_format = gamma ? GL_SRGB_ALPHA : GL_RGBA;
+      format = GL_RGBA;
+      break;
+    default:
+      break;
+  }
+
+  glTexImage2D(GL_TEXTURE_2D, 0, internal_format, image_buffer->width,
+               image_buffer->height, 0, format, GL_UNSIGNED_BYTE,
+               image_buffer->data);
+  glGenerateMipmap(GL_TEXTURE_2D);
+
+  stbi_image_free(image_buffer->data);
 }

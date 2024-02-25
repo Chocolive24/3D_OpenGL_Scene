@@ -18,7 +18,7 @@ enum class JobType : std::int8_t {
   kNone = -1,
   kFileReading,
   kFileDecompressing,
-  kDownloadingDataToGpu,
+  kloadingTextureToGpu,
   kOther
 };
 
@@ -58,7 +58,7 @@ class Job {
 class Worker {
  public:
   Worker() noexcept = default;
-  void Loop(std::vector<Job*>& jobs) noexcept;
+  void RunWorkLoop(std::vector<Job*>& jobs) noexcept;
   void Join() noexcept;
 
  private:
@@ -72,6 +72,7 @@ class JobSystem {
   JobSystem() noexcept = default;
   void AddJob(Job* job) noexcept;
   void LaunchWorkers(int worker_count) noexcept;
+  void RunMainThreadWorkLoop(std::vector<Job*>& jobs) noexcept;
   void JoinWorkers() noexcept;
 
  private:
@@ -80,5 +81,6 @@ class JobSystem {
   // Use vectors as queues by pushing elements back to the end while 
   // erasing those at the front.
   std::vector<Job*> img_reading_jobs_{};
-  std::vector<Job*> img_decompressing_jobs_;
+  std::vector<Job*> img_decompressing_jobs_{};
+  std::vector<Job*> loading_texture_to_gpu_jobs{};
 };

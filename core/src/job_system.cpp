@@ -54,7 +54,7 @@ void Job::AddDependency(Job* dependency) noexcept {
   dependencies_.push_back(dependency);
 }
 
-void Worker::Loop(std::vector<Job*>& jobs) noexcept { 
+void Worker::RunWorkLoop(std::vector<Job*>& jobs) noexcept { 
   thread_ = std::thread([this](std::vector<Job*>& jobs) {  
     while (is_running_) {
       Job* job = nullptr;
@@ -93,13 +93,36 @@ void JobSystem::LaunchWorkers(int worker_count) noexcept {
 
     switch (static_cast<JobType>(i)) { 
       case JobType::kFileReading:
-        workers_[i].Loop(img_reading_jobs_);
+        workers_[i].RunWorkLoop(img_reading_jobs_);
         break;
       case JobType::kFileDecompressing:
-        workers_[i].Loop(img_decompressing_jobs_);
+        workers_[i].RunWorkLoop(img_decompressing_jobs_);
         break;
       default:
         break;
+    }
+  }
+
+  RunMainThreadWorkLoop(loading_texture_to_gpu_jobs);
+}
+
+void JobSystem::RunMainThreadWorkLoop(std::vector<Job*>& jobs) noexcept {
+  bool is_running = true;
+  while (is_running) {
+    Job* job = nullptr;
+
+    if (!jobs.empty()) {
+      // Takes the job at the front of the vector and erases it.
+      job = std::move(jobs.front());
+      jobs.erase(jobs.begin());
+    } else {
+      is_running = false;
+      break;
+    }
+
+    if (job) {
+      job->Execute();
+      // delete job;
     }
   }
 }
@@ -111,6 +134,9 @@ void JobSystem::AddJob(Job* job) noexcept {
       break;
     case JobType::kFileDecompressing:
       img_decompressing_jobs_.push_back(std::move(job));
+      break;
+    case JobType::kloadingTextureToGpu:
+      loading_texture_to_gpu_jobs.push_back(std::move(job));
       break;
     default:
       break;

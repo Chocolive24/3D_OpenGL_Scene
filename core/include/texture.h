@@ -23,8 +23,28 @@ public:
   std::string path;
 }; 
 
-struct TextureGpu {
-  unsigned char* data;
+/*
+* @brief TextureParameters is a struct containing the various parameters required 
+to create a texture on the GPU.
+*/
+struct TextureParameters {
+  TextureParameters(std::string_view path, GLint wrap_param, GLint filter_param,
+                    bool gamma, bool flip_y) noexcept
+    : image_file_path(path.data()),
+      wrapping_param(wrap_param),
+      filtering_param(filter_param),
+      gamma_corrected(gamma),
+      flipped_y(flip_y){};
+
+  std::string image_file_path{};
+  GLint wrapping_param = GL_CLAMP_TO_EDGE;
+  GLint filtering_param = GL_LINEAR;
+  bool gamma_corrected = false;
+  bool flipped_y = false;
+};
+
+struct ImageBuffer {
+  unsigned char* data; // lifetime is managed by stb_image functions.
   int width = 0, height = 0, channels = 0;
 };
 
@@ -37,6 +57,9 @@ GLuint LoadHDR_Texture(std::string_view path, GLint wrapping_param,
                        GLint filtering_param, bool flip_y = true);
 GLuint LoadCubeMap(const std::array<std::string, 6>& faces, GLint wrapping_param,
                    GLint filtering_param, bool flip_y = false);
+
+void LoadTextureToGpu(ImageBuffer* image_buffer, GLuint* id, GLint wrapping_param,
+                      GLint filtering_param, bool gamma = false) noexcept;
 
 // =============================================
 //            Multithreading Jobs.
@@ -55,13 +78,13 @@ class ImageFileReadingJob final : public Job {
 
   void Work() noexcept override;
 
-  FileBuffer* file_buffer{};
+  FileBuffer* file_buffer = nullptr;
   std::string file_path{};
 };
 
 class ImageFileDecompressingJob final : public Job {
  public:
-  ImageFileDecompressingJob(FileBuffer* file_buffer, TextureGpu* texture) noexcept;
+  ImageFileDecompressingJob(FileBuffer* file_buffer, ImageBuffer* texture, bool flip_y) noexcept;
 
   ImageFileDecompressingJob(ImageFileDecompressingJob&& other) noexcept;
   ImageFileDecompressingJob& operator=(ImageFileDecompressingJob&& other) noexcept;
@@ -74,6 +97,7 @@ class ImageFileDecompressingJob final : public Job {
   void Work() noexcept override;
 
  private:
-  FileBuffer* file_buffer_;
-  TextureGpu* texture_{};
+  FileBuffer* file_buffer_ = nullptr;
+  ImageBuffer* texture_ = nullptr;
+  bool flip_y_ = true;
 };
