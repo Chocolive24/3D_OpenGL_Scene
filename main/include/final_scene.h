@@ -34,21 +34,21 @@ struct PointLight {
 // These jobs are dependent of the OpenGL context so they have
 // to be executed by the main thread.
 // ----------------------------------
-class CreateShaderProgramJob final : public Job {
+class PipelineCreationJob final : public Job {
  public:
-   CreateShaderProgramJob(std::shared_ptr<FileBuffer> v_shader_buff,
+   PipelineCreationJob(std::shared_ptr<FileBuffer> v_shader_buff,
                           std::shared_ptr<FileBuffer> f_shader_buff,
-                          const Pipeline* pipeline);
+                          Pipeline* pipeline);
 
-   CreateShaderProgramJob(CreateShaderProgramJob&& other) noexcept;
-   CreateShaderProgramJob& operator=(CreateShaderProgramJob&& other) noexcept;
+   PipelineCreationJob(PipelineCreationJob&& other) noexcept;
+   PipelineCreationJob& operator=(PipelineCreationJob&& other) noexcept;
 
-   CreateShaderProgramJob(const CreateShaderProgramJob& other) noexcept =
+   PipelineCreationJob(const PipelineCreationJob& other) noexcept =
        delete;
-   CreateShaderProgramJob& operator=(
-       const CreateShaderProgramJob& other) noexcept = delete;
+   PipelineCreationJob& operator=(
+       const PipelineCreationJob& other) noexcept = delete;
        
-   ~CreateShaderProgramJob() noexcept;
+   ~PipelineCreationJob() noexcept;
 
    void Work() noexcept override;
 
@@ -56,7 +56,7 @@ class CreateShaderProgramJob final : public Job {
    // Shared with the load shader file from disk job.
    std::shared_ptr<FileBuffer> vertex_shader_buffer_ = nullptr;
    std::shared_ptr<FileBuffer> fragment_shader_buffer_ = nullptr;
-   const Pipeline* pipeline_;
+   Pipeline* pipeline_;
 };
 
 class LoadTextureToGpuJob final : public Job {
@@ -101,7 +101,7 @@ class LoadFileFromDiskJob final : public Job {
   void Work() noexcept override;
 
  private:
-  std::shared_ptr<FileBuffer> vertex_shader_buffer_ = nullptr;
+  std::shared_ptr<FileBuffer> file_buffer_ = nullptr;
   std::string file_path_{};
 };
 
@@ -126,6 +126,7 @@ private:
   // Main thread's jobs.
   // -------------------
   std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs_;
+  std::vector<PipelineCreationJob> pipeline_creation_jobs_{};
 
   // Other thread's jobs.
   // --------------------
@@ -313,7 +314,8 @@ private:
 
   // Begin methods.
   // --------------
-  void CreatePipelines() noexcept;
+  void CreatePipelineCreationJobs() noexcept;
+  void SetPipelineSamplerTexUnits() noexcept;
 
   void CreateMeshes() noexcept;
   void CreateModels() noexcept;

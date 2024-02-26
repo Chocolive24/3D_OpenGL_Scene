@@ -64,9 +64,10 @@ void Pipeline::Begin(const FileBuffer& vert_shader_buff,
                      const FileBuffer& frag_shader_buff) noexcept {
   // Load vertex shader.
   auto vertex_shader = glCreateShader(GL_VERTEX_SHADER);
-  glShaderSource(vertex_shader, 1,
-                 reinterpret_cast<const GLchar* const*>(vert_shader_buff.data),
-                 nullptr);
+
+  const GLchar* v_shader_source = reinterpret_cast<const GLchar*>(vert_shader_buff.data);
+
+  glShaderSource(vertex_shader, 1, &v_shader_source, &vert_shader_buff.size);
   glCompileShader(vertex_shader);
 
   // Check success status of vertex shader compilation
@@ -77,10 +78,9 @@ void Pipeline::Begin(const FileBuffer& vert_shader_buff,
   }
 
   // Load fragment shader.
+  const GLchar* f_shader_source = reinterpret_cast<const GLchar*>(frag_shader_buff.data);
   auto fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
-  glShaderSource(fragment_shader, 1,
-                 reinterpret_cast<const GLchar* const*>(frag_shader_buff.data),
-                 nullptr);
+  glShaderSource(fragment_shader, 1, &f_shader_source, &frag_shader_buff.size);
   glCompileShader(fragment_shader);
 
   // Check success status of fragment shader compilation

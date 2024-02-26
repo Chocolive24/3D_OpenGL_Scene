@@ -17,7 +17,7 @@ void FinalScene::Begin() {
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
-  CreatePipelines();
+  CreatePipelineCreationJobs();
   CreateMaterialsCreationJobs();
 
   job_system_.LaunchWorkers(3);
@@ -26,7 +26,10 @@ void FinalScene::Begin() {
   CreateModels();
 
   CreateFrameBuffers();
+  
+  job_system_.JoinWorkers();
 
+  SetPipelineSamplerTexUnits();
   // For the time being the CreateHdrCubemap function is dependent of the result 
   // of the job system. -> TODO: create a main thread job to create the hdr cubemap.
   CreateHdrCubemap();
@@ -53,8 +56,6 @@ void FinalScene::Begin() {
   glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
 
   ApplyShadowMappingPass();
-
-  job_system_.JoinWorkers();
 }
 
 void FinalScene::End() {
@@ -278,12 +279,13 @@ void FinalScene::DrawImGui() {
   ImGui::End();
 }
 
-void FinalScene::CreatePipelines() noexcept {
+void FinalScene::CreatePipelineCreationJobs() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
   constexpr int shader_count = 40;
+  constexpr int pipeline_count = shader_count / 2;
 
   std::array<std::string_view, shader_count> shader_paths{
     "data/shaders/transform/local_transform.vert",
@@ -328,79 +330,135 @@ void FinalScene::CreatePipelines() noexcept {
     "data/shaders/hdr/hdr.frag",
   };
 
-  shader_file_loading_jobs_.reserve(shader_count);
+  std::array<Pipeline*, pipeline_count> pipelines_ {
+    // IBL textures creation pipelines.
+    // --------------------------------
+    &equirect_to_cubemap_pipe_,
+    &irradiance_pipeline_,
+    &prefilter_pipeline_,
+    &brdf_pipeline_,
 
+    // Geometry pipelines.
+    // -------------------
+    &geometry_pipeline_, 
+    &arm_geometry_pipe_,
+    &emissive_arm_geometry_pipe_,
+    &instanced_geometry_pipeline_,
+    &ssao_pipeline_,
+    &ssao_blur_pipeline_,
+    &shadow_mapping_pipe_,
+    &point_shadow_mapping_pipe_,
+    &instanced_shadow_mapping_pipe_,
+    &point_instanced_shadow_mapping_pipe_,
+
+    // Drawing and lighting pipelines.
+    // -------------------------------
+    &pbr_lighting_pipeline_,
+    &debug_lights_pipeline_,
+    &cubemap_pipeline_,
+
+    //// Postprocessing pipelines.
+    //// -------------------------
+    &down_sample_pipeline_,
+    &up_sample_pipeline_,
+    &bloom_hdr_pipeline_,
+  };
+
+  std::array<std::shared_ptr<FileBuffer>, shader_count> file_buffers{};
+
+  shader_file_loading_jobs_.reserve(shader_count);
+  pipeline_creation_jobs_.reserve(pipeline_count);
+
+  int pipeline_iterator = 0;
   for (int i = 0; i < shader_count; i++) {
-    std::shared_ptr<FileBuffer> file_buffer = std::make_shared<FileBuffer>();
+    file_buffers[i] = std::make_shared<FileBuffer>();
+
     shader_file_loading_jobs_.emplace_back(LoadFileFromDiskJob(
         shader_paths[i].data(), 
-        file_buffer, JobType::kShaderFileLoading)
+        file_buffers[i], JobType::kShaderFileLoading)
     );
+
+    if (i % 2 == 1) {
+      pipeline_creation_jobs_.emplace_back(PipelineCreationJob(
+          file_buffers[i - 1], file_buffers[i], pipelines_[pipeline_iterator])
+      );
+
+      pipeline_creation_jobs_[pipeline_iterator].AddDependency(&shader_file_loading_jobs_[i - 1]);
+      pipeline_creation_jobs_[pipeline_iterator].AddDependency(&shader_file_loading_jobs_[i]);
+
+      pipeline_iterator++;
+    }
   }
 
   for (auto& shader_loading_job : shader_file_loading_jobs_) {
     job_system_.AddJob(&shader_loading_job);
   }
 
-  equirect_to_cubemap_pipe_.Begin(
-      "data/shaders/transform/local_transform.vert",
-      "data/shaders/hdr/equirectangular_to_cubemap.frag");
+  for (auto& prog_creation_job : pipeline_creation_jobs_) {
+    job_system_.AddJob(&prog_creation_job);
+  }
+}
 
-  irradiance_pipeline_.Begin(
-      "data/shaders/transform/local_transform.vert",
-      "data/shaders/pbr/irradiance_convultion.frag");
+void FinalScene::SetPipelineSamplerTexUnits() noexcept {
+   //equirect_to_cubemap_pipe_.Begin(
+   //   "data/shaders/transform/local_transform.vert",
+   //   "data/shaders/hdr/equirectangular_to_cubemap.frag");
 
-  prefilter_pipeline_.Begin(
-      "data/shaders/transform/local_transform.vert",
-      "data/shaders/pbr/prefilter.frag");
+   //irradiance_pipeline_.Begin(
+   //    "data/shaders/transform/local_transform.vert",
+   //    "data/shaders/pbr/irradiance_convultion.frag");
 
-  brdf_pipeline_.Begin("data/shaders/pbr/brdf.vert",
-                       "data/shaders/pbr/brdf.frag");
+   //prefilter_pipeline_.Begin(
+   //    "data/shaders/transform/local_transform.vert",
+   //    "data/shaders/pbr/prefilter.frag");
 
-  geometry_pipeline_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
-                           "data/shaders/pbr/pbr_g_buffer.frag");
+   //brdf_pipeline_.Begin("data/shaders/pbr/brdf.vert",
+   //                     "data/shaders/pbr/brdf.frag");
 
-  arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
-                           "data/shaders/pbr/arm_pbr_g_buffer.frag");
+   //geometry_pipeline_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
+   //                         "data/shaders/pbr/pbr_g_buffer.frag");
 
-  emissive_arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
-      "data/shaders/pbr/emissive_arm_pbr_g_buffer.frag");
+   //arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
+   //                         "data/shaders/pbr/arm_pbr_g_buffer.frag");
 
-  instanced_geometry_pipeline_.Begin("data/shaders/pbr/instanced_pbr_g_buffer.vert",
-                                     "data/shaders/pbr/pbr_g_buffer.frag");
+   //emissive_arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
+   //    "data/shaders/pbr/emissive_arm_pbr_g_buffer.frag");
 
-  ssao_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                       "data/shaders/ssao/ssao.frag");
-  ssao_blur_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                            "data/shaders/ssao/ssao_blur.frag");
+   //instanced_geometry_pipeline_.Begin("data/shaders/pbr/instanced_pbr_g_buffer.vert",
+   //                                   "data/shaders/pbr/pbr_g_buffer.frag");
 
-  shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
-                             "data/shaders/shadow/simple_depth.frag");
+  /* ssao_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                        "data/shaders/ssao/ssao.frag");
+   ssao_blur_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                             "data/shaders/ssao/ssao_blur.frag");
 
-  point_shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
-                             "data/shaders/shadow/point_light_simple_depth.frag");
+   shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
+                              "data/shaders/shadow/simple_depth.frag");
 
-  instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
-                                       "data/shaders/shadow/simple_depth.frag");
-  point_instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
-                                             "data/shaders/shadow/point_light_simple_depth.frag");
+   point_shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
+                              "data/shaders/shadow/point_light_simple_depth.frag");
 
-  pbr_lighting_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                               "data/shaders/pbr/deferred_pbr.frag");
+   instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
+                                        "data/shaders/shadow/simple_depth.frag");
+   point_instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
+                                              "data/shaders/shadow/point_light_simple_depth.frag");
 
-  debug_lights_pipeline_.Begin("data/shaders/transform/transform.vert",
-                               "data/shaders/visual_debug/light_debug.frag");
+   pbr_lighting_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                                "data/shaders/pbr/deferred_pbr.frag");
 
-  cubemap_pipeline_.Begin("data/shaders/hdr/hdr_cubemap.vert",
-                          "data/shaders/hdr/hdr_cubemap.frag");
+   debug_lights_pipeline_.Begin("data/shaders/transform/transform.vert",
+                                "data/shaders/visual_debug/light_debug.frag");
+
+   cubemap_pipeline_.Begin("data/shaders/hdr/hdr_cubemap.vert",
+                           "data/shaders/hdr/hdr_cubemap.frag");
   
-  down_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                              "data/shaders/bloom/down_sample.frag");
-  up_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                            "data/shaders/bloom/up_sample.frag");
+   down_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                               "data/shaders/bloom/down_sample.frag");
+   up_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                             "data/shaders/bloom/up_sample.frag");
 
-  bloom_hdr_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                      "data/shaders/hdr/hdr.frag");
+   bloom_hdr_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
+                       "data/shaders/hdr/hdr.frag");*/
 
   // Setup the sampler2D uniforms.
   // -----------------------------
@@ -1839,28 +1897,28 @@ LoadFileFromDiskJob::LoadFileFromDiskJob(std::string file_path,
                                          JobType job_type) noexcept
     : Job(job_type),
       file_path_(std::move(file_path)),
-      vertex_shader_buffer_(file_buffer) // Don't move the shared pointer in creation. 
+      file_buffer_(file_buffer) // Don't move the shared pointer in creation. 
 {
 }
 
 LoadFileFromDiskJob::LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept
     : Job(std::move(other)) {
-  vertex_shader_buffer_ = std::move(other.vertex_shader_buffer_);
+  file_buffer_ = std::move(other.file_buffer_);
   file_path_ = std::move(other.file_path_);
 
-  other.vertex_shader_buffer_ = nullptr;
+  other.file_buffer_ = nullptr;
 }
 LoadFileFromDiskJob& LoadFileFromDiskJob::operator=(LoadFileFromDiskJob&& other) noexcept {
   Job::operator=(std::move(other));
-  vertex_shader_buffer_ = std::move(other.vertex_shader_buffer_);
+  file_buffer_ = std::move(other.file_buffer_);
   file_path_ = std::move(other.file_path_);
 
-  other.vertex_shader_buffer_ = nullptr;
+  other.file_buffer_ = nullptr;
 
   return *this;
 }
 
-LoadFileFromDiskJob::~LoadFileFromDiskJob() { vertex_shader_buffer_ = nullptr; }
+LoadFileFromDiskJob::~LoadFileFromDiskJob() { file_buffer_ = nullptr; }
 
 void LoadFileFromDiskJob::Work() noexcept {
 #ifdef TRACY_ENABLE
@@ -1868,37 +1926,47 @@ void LoadFileFromDiskJob::Work() noexcept {
   ZoneText(file_path_.data(), file_path_.size());
 #endif  // TRACY_ENABLE
 
-  file_utility::LoadFileInBuffer(file_path_.data(), vertex_shader_buffer_.get());
+  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_.get());
 }
 
-CreateShaderProgramJob::CreateShaderProgramJob(
+PipelineCreationJob::PipelineCreationJob(
   std::shared_ptr<FileBuffer> v_shader_buff,
-  std::shared_ptr<FileBuffer> f_shader_buff, const Pipeline* pipeline)
+  std::shared_ptr<FileBuffer> f_shader_buff, Pipeline* pipeline)
   : Job(JobType::kMainThread),
     vertex_shader_buffer_(v_shader_buff),
     fragment_shader_buffer_(f_shader_buff),
     pipeline_(pipeline) {}
 
-CreateShaderProgramJob::CreateShaderProgramJob(
-    CreateShaderProgramJob&& other) noexcept : 
+PipelineCreationJob::PipelineCreationJob(
+    PipelineCreationJob&& other) noexcept : 
   Job(std::move(other)),
   vertex_shader_buffer_(std::move(other.vertex_shader_buffer_)),
   fragment_shader_buffer_(std::move(other.fragment_shader_buffer_)),
   pipeline_(std::move(other.pipeline_)) 
 {}
 
-CreateShaderProgramJob& CreateShaderProgramJob::operator=(
-    CreateShaderProgramJob&& other) noexcept {
+PipelineCreationJob& PipelineCreationJob::operator=(
+    PipelineCreationJob&& other) noexcept {
   Job::operator=(std::move(other));
   vertex_shader_buffer_ = std::move(other.vertex_shader_buffer_);
   fragment_shader_buffer_ = std::move(other.fragment_shader_buffer_);
   pipeline_ = std::move(other.pipeline_);
+
+  return *this;
 }
 
-CreateShaderProgramJob::~CreateShaderProgramJob() noexcept {
+PipelineCreationJob::~PipelineCreationJob() noexcept {
   vertex_shader_buffer_ = nullptr;
   fragment_shader_buffer_ = nullptr;
   pipeline_ = nullptr;
 }
 
-void CreateShaderProgramJob::Work() noexcept {}
+void PipelineCreationJob::Work() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+  //ZoneText(reinterpret_cast<const char*>(fragment_shader_buffer_.get()->data),
+  //         vertex_shader_buffer_.get()->size);
+#endif  // TRACY_ENABLE
+
+  pipeline_->Begin(*vertex_shader_buffer_, *fragment_shader_buffer_);
+}
