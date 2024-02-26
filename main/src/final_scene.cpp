@@ -17,14 +17,20 @@ void FinalScene::Begin() {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
+  CreateMaterials();
+
+  job_system_.LaunchWorkers(2);
+
   CreatePipelines();
 
   CreateMeshes();
   CreateModels();
-  CreateMaterials();
+
 
   CreateFrameBuffers();
 
+  // For the time being the CreateHdrCubemap function is dependent of the result 
+  // of the job system. -> TODO: create a main thread job to create the hdr cubemap.
   CreateHdrCubemap();
   CreateIrradianceCubeMap();
   CreatePrefilterCubeMap();
@@ -1016,16 +1022,9 @@ void FinalScene::CreateMaterials() noexcept {
 
   texture_ids[37] = &equirectangular_map_;
 
-  // Job vectors.
-  // ------------
-  std::vector<LoadFileFromDiskJob> img_reading_jobs;
-  img_reading_jobs.reserve(texture_count);
-
-  std::vector<ImageFileDecompressingJob> img_decompressing_jobs;
-  img_decompressing_jobs.reserve(texture_count);
-
-  std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs;
-  load_tex_to_gpu_jobs.reserve(texture_count);
+  img_reading_jobs_.reserve(texture_count);
+  img_decompressing_jobs_.reserve(texture_count);
+  load_tex_to_gpu_jobs_.reserve(texture_count);
 
   // For loop that creates all the jobs used to create textures for materials.
   for (std::int8_t i = 0; i < texture_count; i++) {
@@ -1034,37 +1033,35 @@ void FinalScene::CreateMaterials() noexcept {
     // Image files reading job.
     // ------------------------
     file_buffers[i] = std::make_shared<FileBuffer>();
-    img_reading_jobs.emplace_back(LoadFileFromDiskJob(tex_param.image_file_path, file_buffers[i]));
+    img_reading_jobs_.emplace_back(LoadFileFromDiskJob(tex_param.image_file_path, file_buffers[i]));
 
     // Image files decompressing job.
     // ------------------------------
     image_buffers[i] = std::make_shared<ImageBuffer>();
-    img_decompressing_jobs.emplace_back(ImageFileDecompressingJob(file_buffers[i], image_buffers[i],
+    img_decompressing_jobs_.emplace_back(ImageFileDecompressingJob(file_buffers[i], image_buffers[i],
                                         tex_param.flipped_y, tex_param.hdr));
 
-    img_decompressing_jobs[i].AddDependency(&img_reading_jobs[i]);
+    img_decompressing_jobs_[i].AddDependency(&img_reading_jobs_[i]);
 
     // Texture loading to GPU job.
     // ---------------------------
-    load_tex_to_gpu_jobs.emplace_back(LoadTextureToGpuJob(image_buffers[i], 
+    load_tex_to_gpu_jobs_.emplace_back(LoadTextureToGpuJob(image_buffers[i], 
         texture_ids[i], tex_param));
 
-    load_tex_to_gpu_jobs[i].AddDependency(&img_decompressing_jobs[i]);
+    load_tex_to_gpu_jobs_[i].AddDependency(&img_decompressing_jobs_[i]);
   }
 
-  for (auto& reading_job : img_reading_jobs) {
+  for (auto& reading_job : img_reading_jobs_) {
       job_system_.AddJob(&reading_job);
   }
 
-  for (auto& decompressing_job : img_decompressing_jobs) {
+  for (auto& decompressing_job : img_decompressing_jobs_) {
     job_system_.AddJob(&decompressing_job);
   }
 
-  for (auto& load_tex_to_gpu : load_tex_to_gpu_jobs) {
+  for (auto& load_tex_to_gpu : load_tex_to_gpu_jobs_) {
     job_system_.AddJob(&load_tex_to_gpu);
   }
-
-  job_system_.LaunchWorkers(2);
 }
 
 void FinalScene::ApplyGeometryPass() noexcept {

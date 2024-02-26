@@ -26,6 +26,64 @@ struct PointLight {
   float quadratic = 0.f;
 };
 
+// ===================================================================================
+//                              Multithreading.
+// ===================================================================================
+
+// Main thread's jobs.
+// These jobs are dependent of the OpenGL context so they have
+// to be executed by the main thread.
+// ----------------------------------
+class LoadTextureToGpuJob final : public Job {
+ public:
+  LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buffer,
+                      GLuint* texture_id,
+                      const TextureParameters& tex_param) noexcept;
+
+  LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept;
+  LoadTextureToGpuJob& operator=(LoadTextureToGpuJob&& other) noexcept;
+  LoadTextureToGpuJob(const LoadTextureToGpuJob& other) noexcept = delete;
+  LoadTextureToGpuJob& operator=(const LoadTextureToGpuJob& other) noexcept =
+      delete;
+
+  ~LoadTextureToGpuJob() noexcept;
+
+  void Work() noexcept override;
+
+ private:
+  // Shared with the image decompressing job.
+  std::shared_ptr<ImageBuffer> image_buffer_ = nullptr;
+  GLuint* texture_id_ = nullptr;
+  TextureParameters texture_param_;
+};
+
+// Other thread's jobs.
+// --------------------
+class LoadFileFromDiskJob final : public Job {
+ public:
+  LoadFileFromDiskJob(std::string file_path,
+                      std::shared_ptr<FileBuffer> file_buffer) noexcept;
+
+  LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept;
+  LoadFileFromDiskJob& operator=(LoadFileFromDiskJob&& other) noexcept;
+  LoadFileFromDiskJob(const LoadFileFromDiskJob& other) noexcept = delete;
+  LoadFileFromDiskJob& operator=(const LoadFileFromDiskJob& other) noexcept =
+      delete;
+
+  ~LoadFileFromDiskJob() noexcept;
+
+  void Work() noexcept override;
+
+ private:
+  std::shared_ptr<FileBuffer> file_buffer_ = nullptr;
+  std::string file_path_{};
+};
+
+class CreatingMeshJob final : public Job {
+ public:
+  void Work() noexcept override;
+};
+
 class FinalScene final : public Scene {
 public:
   void Begin() override;
@@ -43,6 +101,10 @@ private:
   glm::mat4 model_, view_, projection_;
 
   JobSystem job_system_;
+
+  std::vector<LoadFileFromDiskJob> img_reading_jobs_;
+  std::vector<ImageFileDecompressingJob> img_decompressing_jobs_;
+  std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs_;
 
   // IBL textures creation pipelines.
   // --------------------------------
@@ -263,58 +325,4 @@ private:
   void DestroyIblPreComputedCubeMaps() noexcept;
 
   void DestroyFrameBuffers() noexcept;
-};
-
-// ===================================================================================
-//                              Multithreading.
-// ===================================================================================
-
-// Main thread's jobs.
-// These jobs are dependent of the OpenGL context so they have
-// to be executed by the main thread.
-// ----------------------------------
-class LoadTextureToGpuJob final : public Job {
- public:
-  LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buffer, GLuint* texture_id, 
-                      const TextureParameters& tex_param) noexcept;
-
-  LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept;
-  LoadTextureToGpuJob& operator=(LoadTextureToGpuJob&& other) noexcept;
-  LoadTextureToGpuJob(const LoadTextureToGpuJob& other) noexcept = delete;
-  LoadTextureToGpuJob& operator=(const LoadTextureToGpuJob& other) noexcept = delete;
-
-  ~LoadTextureToGpuJob() noexcept;
-
-  void Work() noexcept override;
-
- private:
-  // Shared with the image decompressing job.
-  std::shared_ptr<ImageBuffer> image_buffer_ = nullptr;
-  GLuint* texture_id_ = nullptr; 
-  TextureParameters texture_param_;
-};
-
-// Other thread's jobs.
-// --------------------
-class LoadFileFromDiskJob final : public Job {
- public:
-  LoadFileFromDiskJob(std::string file_path, std::shared_ptr<FileBuffer> file_buffer) noexcept;
-
-  LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept;
-  LoadFileFromDiskJob& operator=(LoadFileFromDiskJob&& other) noexcept;
-  LoadFileFromDiskJob(const LoadFileFromDiskJob& other) noexcept = delete;
-  LoadFileFromDiskJob& operator=(const LoadFileFromDiskJob& other) noexcept = delete;
-
-  ~LoadFileFromDiskJob() noexcept;
-
-  void Work() noexcept override;
-
- private:
-  std::shared_ptr<FileBuffer> file_buffer_ = nullptr;
-  std::string file_path_{};
-};
-
-class CreatingMeshJob final : public Job {
- public:
-  void Work() noexcept override;
 };
