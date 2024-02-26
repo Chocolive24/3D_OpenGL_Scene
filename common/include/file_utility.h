@@ -19,4 +19,4 @@ namespace file_utility {
   std::string LoadFile(std::string_view path);
   FileBuffer LoadFileBuffer(std::string_view path);
   void LoadFileInBuffer(std::string_view path, FileBuffer* file_buffer);
-  }
+}

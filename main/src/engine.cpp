@@ -122,7 +122,7 @@ void Engine::Begin() {
   io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
   // Setup Dear ImGui style
-  // ImGui::StyleColorsDark();
+  ImGui::StyleColorsDark();
   ImGui::StyleColorsClassic();
   ImGui_ImplSDL2_InitForOpenGL(window_, glRenderContext_);
   ImGui_ImplOpenGL3_Init("#version 300 es");

@@ -2,7 +2,7 @@
 #include "mesh.h"
 #include "model.h"
 #include "error.h"
-#include "file_utility.h"
+
 
 #include <iostream>
 #include <string>
@@ -52,6 +52,53 @@ void Pipeline::Begin(std::string_view vertex_path,
   glGetProgramiv(program_, GL_LINK_STATUS, &success);
   if (!success) {
     std::cerr << "Error while linking shader program\n";
+  }
+
+  // Delete the shaders as they're linked into our program now and no longer
+  // necessary.
+  glDeleteShader(vertex_shader);
+  glDeleteShader(fragment_shader);
+}
+
+void Pipeline::Begin(const FileBuffer& vert_shader_buff,
+                     const FileBuffer& frag_shader_buff) noexcept {
+  // Load vertex shader.
+  auto vertex_shader = glCreateShader(GL_VERTEX_SHADER);
+  glShaderSource(vertex_shader, 1,
+                 reinterpret_cast<const GLchar* const*>(vert_shader_buff.data),
+                 nullptr);
+  glCompileShader(vertex_shader);
+
+  // Check success status of vertex shader compilation
+  GLint success;
+  glGetShaderiv(vertex_shader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    std::cerr << "Error while loading vertex shader.\n";
+  }
+
+  // Load fragment shader.
+  auto fragment_shader = glCreateShader(GL_FRAGMENT_SHADER);
+  glShaderSource(fragment_shader, 1,
+                 reinterpret_cast<const GLchar* const*>(frag_shader_buff.data),
+                 nullptr);
+  glCompileShader(fragment_shader);
+
+  // Check success status of fragment shader compilation
+  glGetShaderiv(fragment_shader, GL_COMPILE_STATUS, &success);
+  if (!success) {
+    std::cerr << "Error while loading fragment shader.\n";
+  }
+
+  // Load program/pipeline
+  program_ = glCreateProgram();
+  glAttachShader(program_, vertex_shader);
+  glAttachShader(program_, fragment_shader);
+  glLinkProgram(program_);
+
+  // Check if shader program was linked correctly
+  glGetProgramiv(program_, GL_LINK_STATUS, &success);
+  if (!success) {
+    std::cerr << "Error while linking shader program.\n";
   }
 
   // Delete the shaders as they're linked into our program now and no longer

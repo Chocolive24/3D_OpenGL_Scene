@@ -70,7 +70,7 @@ class ImageFileDecompressingJob final : public Job {
 
  private:
   // Shared with loading from disk job.
-  std::shared_ptr<FileBuffer> file_buffer_ = nullptr; 
+  std::shared_ptr<FileBuffer> vertex_shader_buffer_ = nullptr; 
   // Shared with loading texture to GPU job.
   std::shared_ptr<ImageBuffer> image_buffer_ = nullptr;
   bool flip_y_ = false;

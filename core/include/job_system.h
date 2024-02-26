@@ -8,16 +8,17 @@
 #include <future>
 #include <memory>
 
-enum class JobStatus : std::int8_t {
+enum class JobStatus : std::int16_t {
   kStarted,
   kDone,
   kNone,
 };
 
-enum class JobType : std::int8_t {
+enum class JobType : std::int16_t {
   kNone = -1,
-  kFileReading,
-  kFileDecompressing,
+  kImageFileLoading,
+  kImageFileDecompressing,
+  kShaderFileLoading,
   kMainThread,
   kOther
 };
@@ -80,7 +81,8 @@ class JobSystem {
 
   // Use vectors as queues by pushing elements back to the end while 
   // erasing those at the front.
-  std::vector<Job*> img_reading_jobs_{};
+  std::vector<Job*> img_file_loading_jobs_{};
   std::vector<Job*> img_decompressing_jobs_{};
+  std::vector<Job*> shader_file_loading_jobs_{};
   std::vector<Job*> main_thread_jobs{};
 };

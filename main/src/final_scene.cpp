@@ -11,21 +11,19 @@
 
 #include <iostream>
 #include <random>
-#include <thread>
 
 void FinalScene::Begin() {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
-  CreateMaterials();
-
-  job_system_.LaunchWorkers(2);
 
   CreatePipelines();
+  CreateMaterialsCreationJobs();
+
+  job_system_.LaunchWorkers(3);
 
   CreateMeshes();
   CreateModels();
-
 
   CreateFrameBuffers();
 
@@ -284,6 +282,65 @@ void FinalScene::CreatePipelines() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
+
+  constexpr int shader_count = 40;
+
+  std::array<std::string_view, shader_count> shader_paths{
+    "data/shaders/transform/local_transform.vert",
+    "data/shaders/hdr/equirectangular_to_cubemap.frag",
+    "data/shaders/transform/local_transform.vert",
+    "data/shaders/pbr/irradiance_convultion.frag",
+    "data/shaders/transform/local_transform.vert",
+    "data/shaders/pbr/prefilter.frag",
+    "data/shaders/pbr/brdf.vert",
+    "data/shaders/pbr/brdf.frag",
+    "data/shaders/pbr/pbr_g_buffer.vert",
+    "data/shaders/pbr/pbr_g_buffer.frag",
+    "data/shaders/pbr/pbr_g_buffer.vert",
+    "data/shaders/pbr/arm_pbr_g_buffer.frag",
+    "data/shaders/pbr/pbr_g_buffer.vert",
+    "data/shaders/pbr/emissive_arm_pbr_g_buffer.frag",
+    "data/shaders/pbr/instanced_pbr_g_buffer.vert",
+    "data/shaders/pbr/pbr_g_buffer.frag",
+    "data/shaders/transform/screen_transform.vert",
+    "data/shaders/ssao/ssao.frag",
+    "data/shaders/transform/screen_transform.vert",
+    "data/shaders/ssao/ssao_blur.frag",
+    "data/shaders/shadow/simple_depth.vert",
+    "data/shaders/shadow/simple_depth.frag",
+    "data/shaders/shadow/simple_depth.vert",
+    "data/shaders/shadow/point_light_simple_depth.frag",
+    "data/shaders/shadow/instanced_simple_depth.vert",
+    "data/shaders/shadow/simple_depth.frag",
+    "data/shaders/shadow/instanced_simple_depth.vert",
+    "data/shaders/shadow/point_light_simple_depth.frag",
+    "data/shaders/transform/screen_transform.vert",
+    "data/shaders/pbr/deferred_pbr.frag",
+    "data/shaders/transform/transform.vert",
+    "data/shaders/visual_debug/light_debug.frag",
+    "data/shaders/hdr/hdr_cubemap.vert",
+    "data/shaders/hdr/hdr_cubemap.frag",
+    "data/shaders/transform/screen_transform.vert",
+    "data/shaders/bloom/down_sample.frag",
+    "data/shaders/transform/screen_transform.vert",
+    "data/shaders/bloom/up_sample.frag",
+    "data/shaders/transform/screen_transform.vert",
+    "data/shaders/hdr/hdr.frag",
+  };
+
+  shader_file_loading_jobs_.reserve(shader_count);
+
+  for (int i = 0; i < shader_count; i++) {
+    std::shared_ptr<FileBuffer> file_buffer = std::make_shared<FileBuffer>();
+    shader_file_loading_jobs_.emplace_back(LoadFileFromDiskJob(
+        shader_paths[i].data(), 
+        file_buffer, JobType::kShaderFileLoading)
+    );
+  }
+
+  for (auto& shader_loading_job : shader_file_loading_jobs_) {
+    job_system_.AddJob(&shader_loading_job);
+  }
 
   equirect_to_cubemap_pipe_.Begin(
       "data/shaders/transform/local_transform.vert",
@@ -869,7 +926,7 @@ void FinalScene::CreateModels() noexcept {
   treasure_chest_.GenerateModelSphereBoundingVolume();
 }
 
-void FinalScene::CreateMaterials() noexcept {
+void FinalScene::CreateMaterialsCreationJobs() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
@@ -1022,7 +1079,7 @@ void FinalScene::CreateMaterials() noexcept {
 
   texture_ids[37] = &equirectangular_map_;
 
-  img_reading_jobs_.reserve(texture_count);
+  img_file_loading_jobs_.reserve(texture_count);
   img_decompressing_jobs_.reserve(texture_count);
   load_tex_to_gpu_jobs_.reserve(texture_count);
 
@@ -1033,7 +1090,8 @@ void FinalScene::CreateMaterials() noexcept {
     // Image files reading job.
     // ------------------------
     file_buffers[i] = std::make_shared<FileBuffer>();
-    img_reading_jobs_.emplace_back(LoadFileFromDiskJob(tex_param.image_file_path, file_buffers[i]));
+    img_file_loading_jobs_.emplace_back(LoadFileFromDiskJob(
+        tex_param.image_file_path, file_buffers[i], JobType::kImageFileLoading));
 
     // Image files decompressing job.
     // ------------------------------
@@ -1041,7 +1099,7 @@ void FinalScene::CreateMaterials() noexcept {
     img_decompressing_jobs_.emplace_back(ImageFileDecompressingJob(file_buffers[i], image_buffers[i],
                                         tex_param.flipped_y, tex_param.hdr));
 
-    img_decompressing_jobs_[i].AddDependency(&img_reading_jobs_[i]);
+    img_decompressing_jobs_[i].AddDependency(&img_file_loading_jobs_[i]);
 
     // Texture loading to GPU job.
     // ---------------------------
@@ -1051,7 +1109,7 @@ void FinalScene::CreateMaterials() noexcept {
     load_tex_to_gpu_jobs_[i].AddDependency(&img_decompressing_jobs_[i]);
   }
 
-  for (auto& reading_job : img_reading_jobs_) {
+  for (auto& reading_job : img_file_loading_jobs_) {
       job_system_.AddJob(&reading_job);
   }
 
@@ -1777,31 +1835,32 @@ void LoadTextureToGpuJob::Work() noexcept {
 }
 
 LoadFileFromDiskJob::LoadFileFromDiskJob(std::string file_path,
-                               std::shared_ptr<FileBuffer> file_buffer) noexcept
-    : Job(JobType::kFileReading),
+                                         std::shared_ptr<FileBuffer> file_buffer,
+                                         JobType job_type) noexcept
+    : Job(job_type),
       file_path_(std::move(file_path)),
-      file_buffer_(file_buffer) // Don't move the shared pointer in creation. 
+      vertex_shader_buffer_(file_buffer) // Don't move the shared pointer in creation. 
 {
 }
 
 LoadFileFromDiskJob::LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept
     : Job(std::move(other)) {
-  file_buffer_ = std::move(other.file_buffer_);
+  vertex_shader_buffer_ = std::move(other.vertex_shader_buffer_);
   file_path_ = std::move(other.file_path_);
 
-  other.file_buffer_ = nullptr;
+  other.vertex_shader_buffer_ = nullptr;
 }
 LoadFileFromDiskJob& LoadFileFromDiskJob::operator=(LoadFileFromDiskJob&& other) noexcept {
   Job::operator=(std::move(other));
-  file_buffer_ = std::move(other.file_buffer_);
+  vertex_shader_buffer_ = std::move(other.vertex_shader_buffer_);
   file_path_ = std::move(other.file_path_);
 
-  other.file_buffer_ = nullptr;
+  other.vertex_shader_buffer_ = nullptr;
 
   return *this;
 }
 
-LoadFileFromDiskJob::~LoadFileFromDiskJob() { file_buffer_ = nullptr; }
+LoadFileFromDiskJob::~LoadFileFromDiskJob() { vertex_shader_buffer_ = nullptr; }
 
 void LoadFileFromDiskJob::Work() noexcept {
 #ifdef TRACY_ENABLE
@@ -1809,5 +1868,37 @@ void LoadFileFromDiskJob::Work() noexcept {
   ZoneText(file_path_.data(), file_path_.size());
 #endif  // TRACY_ENABLE
 
-  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_.get());
+  file_utility::LoadFileInBuffer(file_path_.data(), vertex_shader_buffer_.get());
 }
+
+CreateShaderProgramJob::CreateShaderProgramJob(
+  std::shared_ptr<FileBuffer> v_shader_buff,
+  std::shared_ptr<FileBuffer> f_shader_buff, const Pipeline* pipeline)
+  : Job(JobType::kMainThread),
+    vertex_shader_buffer_(v_shader_buff),
+    fragment_shader_buffer_(f_shader_buff),
+    pipeline_(pipeline) {}
+
+CreateShaderProgramJob::CreateShaderProgramJob(
+    CreateShaderProgramJob&& other) noexcept : 
+  Job(std::move(other)),
+  vertex_shader_buffer_(std::move(other.vertex_shader_buffer_)),
+  fragment_shader_buffer_(std::move(other.fragment_shader_buffer_)),
+  pipeline_(std::move(other.pipeline_)) 
+{}
+
+CreateShaderProgramJob& CreateShaderProgramJob::operator=(
+    CreateShaderProgramJob&& other) noexcept {
+  Job::operator=(std::move(other));
+  vertex_shader_buffer_ = std::move(other.vertex_shader_buffer_);
+  fragment_shader_buffer_ = std::move(other.fragment_shader_buffer_);
+  pipeline_ = std::move(other.pipeline_);
+}
+
+CreateShaderProgramJob::~CreateShaderProgramJob() noexcept {
+  vertex_shader_buffer_ = nullptr;
+  fragment_shader_buffer_ = nullptr;
+  pipeline_ = nullptr;
+}
+
+void CreateShaderProgramJob::Work() noexcept {}

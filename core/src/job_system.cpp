@@ -91,11 +91,14 @@ void JobSystem::LaunchWorkers(int worker_count) noexcept {
     workers_.emplace_back(Worker());
 
     switch (static_cast<JobType>(i)) { 
-      case JobType::kFileReading:
-        workers_[i].RunWorkLoop(img_reading_jobs_);
+      case JobType::kImageFileLoading:
+        workers_[i].RunWorkLoop(img_file_loading_jobs_);
         break;
-      case JobType::kFileDecompressing:
+      case JobType::kImageFileDecompressing:
         workers_[i].RunWorkLoop(img_decompressing_jobs_);
+        break;
+      case JobType::kShaderFileLoading:
+        workers_[i].RunWorkLoop(shader_file_loading_jobs_);
         break;
       default:
         break;
@@ -127,11 +130,14 @@ void JobSystem::RunMainThreadWorkLoop(std::vector<Job*>& jobs) noexcept {
 
 void JobSystem::AddJob(Job* job) noexcept {
   switch (job->type()) {
-    case JobType::kFileReading:
-      img_reading_jobs_.push_back(std::move(job));
+    case JobType::kImageFileLoading:
+      img_file_loading_jobs_.push_back(std::move(job));
       break;
-    case JobType::kFileDecompressing:
+    case JobType::kImageFileDecompressing:
       img_decompressing_jobs_.push_back(std::move(job));
+      break;
+    case JobType::kShaderFileLoading:
+      shader_file_loading_jobs_.push_back(std::move(job));
       break;
     case JobType::kMainThread:
       main_thread_jobs.push_back(std::move(job));

@@ -1,7 +1,6 @@
 #pragma once
 
-#include "mesh.h"
-#include "model.h"
+#include "file_utility.h"
 
 #include <GL/glew.h>
 #include <glm/gtc/matrix_transform.hpp>
@@ -14,6 +13,8 @@ class Pipeline {
   ~Pipeline();
 
   void Begin(std::string_view vertex_path, std::string_view fragment_path) noexcept;
+  void Begin(const FileBuffer& vert_shader_buff, 
+             const FileBuffer& frag_shader_buff) noexcept;
 
   void Bind() const noexcept;
 
