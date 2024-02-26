@@ -71,7 +71,6 @@ void Worker::RunWorkLoop(std::vector<Job*>& jobs) noexcept {
     
       if (job) {
         job->Execute();
-        //delete job;
       }
     } 
   }, jobs);

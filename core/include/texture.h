@@ -5,6 +5,7 @@
 #include <GL/glew.h>
 
 #include <array>
+#include <memory>
 #include <string_view>
 #include <variant>
 
@@ -29,8 +30,8 @@ struct TextureParameters {
 * @brief ImageBuffer is a struct containing the data of a decompressed image file.
 */
 struct ImageBuffer {
-  // Image data can be stored either as an unsigned char if it's a classic image, 
-  // or as a float if it's an image in "hdr" format.
+  // Image data can be stored either as unsigned char if it's a classic image, 
+  // or as float if it's an image in "hdr" format.
   std::variant<unsigned char*, float*> data; // lifetime is managed by stb_image functions.
   int width = 0, height = 0, channels = 0;
 };
@@ -53,7 +54,8 @@ void LoadTextureToGpu(ImageBuffer* image_buffer, GLuint* id, const TextureParame
 
 class ImageFileDecompressingJob final : public Job {
  public:
-  ImageFileDecompressingJob(FileBuffer* file_buffer, ImageBuffer* texture, 
+  ImageFileDecompressingJob(std::shared_ptr<FileBuffer> file_buffer, 
+                            std::shared_ptr<ImageBuffer> img_buffer, 
                             bool flip_y = false, bool hdr = false) noexcept;
 
   ImageFileDecompressingJob(ImageFileDecompressingJob&& other) noexcept;
@@ -67,8 +69,10 @@ class ImageFileDecompressingJob final : public Job {
   void Work() noexcept override;
 
  private:
-  FileBuffer* file_buffer_ = nullptr;
-  ImageBuffer* texture_ = nullptr;
+  // Shared with loading from disk job.
+  std::shared_ptr<FileBuffer> file_buffer_ = nullptr; 
+  // Shared with loading texture to GPU job.
+  std::shared_ptr<ImageBuffer> image_buffer_ = nullptr;
   bool flip_y_ = false;
   bool hdr_ = false;
 };

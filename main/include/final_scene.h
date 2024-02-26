@@ -10,6 +10,7 @@
 #include "job_system.h"
 
 #include <array>
+#include <memory>
 
 enum class GeometryPipelineType {
   kGeometry, 
@@ -274,7 +275,7 @@ private:
 // ----------------------------------
 class LoadTextureToGpuJob final : public Job {
  public:
-  LoadTextureToGpuJob(ImageBuffer* image_buffer, GLuint* texture_id, 
+  LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buffer, GLuint* texture_id, 
                       const TextureParameters& tex_param) noexcept;
 
   LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept;
@@ -287,28 +288,29 @@ class LoadTextureToGpuJob final : public Job {
   void Work() noexcept override;
 
  private:
-  ImageBuffer* image_buffer_ = nullptr;
-  GLuint* texture_id_ = nullptr;
+  // Shared with the image decompressing job.
+  std::shared_ptr<ImageBuffer> image_buffer_ = nullptr;
+  GLuint* texture_id_ = nullptr; 
   TextureParameters texture_param_;
 };
 
 // Other thread's jobs.
 // --------------------
-class FileReadingJob final : public Job {
+class LoadFileFromDiskJob final : public Job {
  public:
-  FileReadingJob(std::string file_path, FileBuffer* file_buffer) noexcept;
+  LoadFileFromDiskJob(std::string file_path, std::shared_ptr<FileBuffer> file_buffer) noexcept;
 
-  FileReadingJob(FileReadingJob&& other) noexcept;
-  FileReadingJob& operator=(FileReadingJob&& other) noexcept;
-  FileReadingJob(const FileReadingJob& other) noexcept = delete;
-  FileReadingJob& operator=(const FileReadingJob& other) noexcept = delete;
+  LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept;
+  LoadFileFromDiskJob& operator=(LoadFileFromDiskJob&& other) noexcept;
+  LoadFileFromDiskJob(const LoadFileFromDiskJob& other) noexcept = delete;
+  LoadFileFromDiskJob& operator=(const LoadFileFromDiskJob& other) noexcept = delete;
 
-  ~FileReadingJob() noexcept;
+  ~LoadFileFromDiskJob() noexcept;
 
   void Work() noexcept override;
 
  private:
-  FileBuffer* file_buffer_ = nullptr;
+  std::shared_ptr<FileBuffer> file_buffer_ = nullptr;
   std::string file_path_{};
 };
 

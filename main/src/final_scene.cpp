@@ -870,8 +870,8 @@ void FinalScene::CreateMaterials() noexcept {
 
   constexpr std::int8_t texture_count = 38;
 
-  std::array<FileBuffer, texture_count> file_buffers{};
-  std::array<ImageBuffer, texture_count> image_buffers{};
+  std::array<std::shared_ptr<FileBuffer>, texture_count> file_buffers{};
+  std::array<std::shared_ptr<ImageBuffer>, texture_count> image_buffers{};
 
   std::array<TextureParameters, texture_count> texture_inputs{
     // Gold Material.
@@ -1018,7 +1018,7 @@ void FinalScene::CreateMaterials() noexcept {
 
   // Job vectors.
   // ------------
-  std::vector<FileReadingJob> img_reading_jobs;
+  std::vector<LoadFileFromDiskJob> img_reading_jobs;
   img_reading_jobs.reserve(texture_count);
 
   std::vector<ImageFileDecompressingJob> img_decompressing_jobs;
@@ -1033,19 +1033,21 @@ void FinalScene::CreateMaterials() noexcept {
 
     // Image files reading job.
     // ------------------------
-    img_reading_jobs.emplace_back(FileReadingJob(tex_param.image_file_path, &file_buffers[i]));
+    file_buffers[i] = std::make_shared<FileBuffer>();
+    img_reading_jobs.emplace_back(LoadFileFromDiskJob(tex_param.image_file_path, file_buffers[i]));
 
     // Image files decompressing job.
     // ------------------------------
-    img_decompressing_jobs.emplace_back(ImageFileDecompressingJob(
-        &file_buffers[i], &image_buffers[i], tex_param.flipped_y, tex_param.hdr));
+    image_buffers[i] = std::make_shared<ImageBuffer>();
+    img_decompressing_jobs.emplace_back(ImageFileDecompressingJob(file_buffers[i], image_buffers[i],
+                                        tex_param.flipped_y, tex_param.hdr));
 
     img_decompressing_jobs[i].AddDependency(&img_reading_jobs[i]);
 
     // Texture loading to GPU job.
     // ---------------------------
-    load_tex_to_gpu_jobs.emplace_back(LoadTextureToGpuJob(
-        &image_buffers[i], texture_ids[i], tex_param));
+    load_tex_to_gpu_jobs.emplace_back(LoadTextureToGpuJob(image_buffers[i], 
+        texture_ids[i], tex_param));
 
     load_tex_to_gpu_jobs[i].AddDependency(&img_decompressing_jobs[i]);
   }
@@ -1738,7 +1740,7 @@ void FinalScene::DestroyMaterials() noexcept {
   }
 }
 
-LoadTextureToGpuJob::LoadTextureToGpuJob(ImageBuffer* image_buffer,
+LoadTextureToGpuJob::LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buffer,
                                          GLuint* texture_id,
                                          const TextureParameters& tex_param) noexcept
   : Job(JobType::kMainThread), 
@@ -1761,6 +1763,8 @@ LoadTextureToGpuJob& LoadTextureToGpuJob::operator=(
   image_buffer_ = std::move(other.image_buffer_);
   texture_id_ = std::move(other.texture_id_);
   texture_param_ = other.texture_param_;
+
+  return *this;
 }
 
 LoadTextureToGpuJob::~LoadTextureToGpuJob() noexcept {
@@ -1772,23 +1776,25 @@ void LoadTextureToGpuJob::Work() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
-  LoadTextureToGpu(image_buffer_, texture_id_, texture_param_);
+  LoadTextureToGpu(image_buffer_.get(), texture_id_, texture_param_);
 }
 
-FileReadingJob::FileReadingJob(std::string file_path,
-                               FileBuffer* file_buffer) noexcept
+LoadFileFromDiskJob::LoadFileFromDiskJob(std::string file_path,
+                               std::shared_ptr<FileBuffer> file_buffer) noexcept
     : Job(JobType::kFileReading),
-      file_path_(file_path),
-      file_buffer_(file_buffer) {}
+      file_path_(std::move(file_path)),
+      file_buffer_(file_buffer) // Don't move the shared pointer in creation. 
+{
+}
 
-FileReadingJob::FileReadingJob(FileReadingJob&& other) noexcept
+LoadFileFromDiskJob::LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept
     : Job(std::move(other)) {
   file_buffer_ = std::move(other.file_buffer_);
   file_path_ = std::move(other.file_path_);
 
   other.file_buffer_ = nullptr;
 }
-FileReadingJob& FileReadingJob::operator=(FileReadingJob&& other) noexcept {
+LoadFileFromDiskJob& LoadFileFromDiskJob::operator=(LoadFileFromDiskJob&& other) noexcept {
   Job::operator=(std::move(other));
   file_buffer_ = std::move(other.file_buffer_);
   file_path_ = std::move(other.file_path_);
@@ -1798,13 +1804,13 @@ FileReadingJob& FileReadingJob::operator=(FileReadingJob&& other) noexcept {
   return *this;
 }
 
-FileReadingJob::~FileReadingJob() { file_buffer_ = nullptr; }
+LoadFileFromDiskJob::~LoadFileFromDiskJob() { file_buffer_ = nullptr; }
 
-void FileReadingJob::Work() noexcept {
+void LoadFileFromDiskJob::Work() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
   ZoneText(file_path_.data(), file_path_.size());
 #endif  // TRACY_ENABLE
 
-  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_);
+  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_.get());
 }
