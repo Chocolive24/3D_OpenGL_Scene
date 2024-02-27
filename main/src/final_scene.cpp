@@ -17,49 +17,97 @@ void FinalScene::Begin() {
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
+  // Framebuffer job.
+  // ----------------
   SceneInitializationJob create_framebuffers([this]() { CreateFrameBuffers(); },
                                              JobType::kMainThread);
   job_system_.AddJob(&create_framebuffers);
 
+  // Pipeline jobs.
+  // -------------
   CreatePipelineCreationJobs();
-  CreateMaterialsCreationJobs();
 
   // Meshes initialization jobs.
   // ---------------------------
-  SceneInitializationJob create_meshes_job([this]() { CreateMeshes(); }, 
-    JobType::kMeshCreating);
+  SceneInitializationJob create_meshes_job([this]() { CreateMeshes(); },
+                                           JobType::kMeshCreating);
 
   SceneInitializationJob load_meshes_to_gpu_job([this]() { LoadMeshesToGpu(); },
-    JobType::kMainThread);
-  load_meshes_to_gpu_job.AddDependency(&create_meshes_job);
-
-  // Models initialization jobs.
-  // ---------------------------
-  SceneInitializationJob create_models_job([this]() { CreateModels(); }, 
-                                           JobType::kModelLoading);
-
-  SceneInitializationJob load_models_to_gpu_job([this]() { LoadModelsToGpu(); },
                                                 JobType::kMainThread);
-  load_meshes_to_gpu_job.AddDependency(&create_models_job);
+  load_meshes_to_gpu_job.AddDependency(&create_meshes_job);
 
   job_system_.AddJob(&create_meshes_job);
   job_system_.AddJob(&load_meshes_to_gpu_job);
-  job_system_.AddJob(&create_models_job);
-  job_system_.AddJob(&load_models_to_gpu_job);
+
+  // Texture jobs.
+  // -------------
+  TextureParameters hdr_map_params("data/textures/hdr/cape_hill_4k.hdr",
+                                   GL_CLAMP_TO_EDGE, GL_LINEAR, false, true,
+                                   true);
+
+  auto file_buffer = std::make_shared<FileBuffer>();
+  auto image_buffer = std::make_shared<ImageBuffer>();
+
+  LoadFileFromDiskJob load_hdr_map{hdr_map_params.image_file_path, file_buffer,
+                                   JobType::kImageFileLoading};
+
+  ImageFileDecompressingJob decomp_hdr_map{
+      file_buffer, image_buffer, hdr_map_params.flipped_y, hdr_map_params.hdr};
+  decomp_hdr_map.AddDependency(&load_hdr_map);
+
+  LoadTextureToGpuJob load_hdr_map_to_gpu{image_buffer, &equirectangular_map_,
+                                          hdr_map_params};
+  load_hdr_map_to_gpu.AddDependency(&decomp_hdr_map);
+
+  job_system_.AddJob(&load_hdr_map);
+  job_system_.AddJob(&decomp_hdr_map);
+  job_system_.AddJob(&load_hdr_map_to_gpu);
+
+  SceneInitializationJob init_ibl_maps_job{[this]() { CreateIblMaps(); },
+                                           JobType::kMainThread};
+  init_ibl_maps_job.AddDependency(&load_hdr_map_to_gpu);
+  init_ibl_maps_job.AddDependency(&create_meshes_job);
+  job_system_.AddJob(&init_ibl_maps_job);
+
+  CreateMaterialsCreationJobs();
+
+  // Models initialization jobs.
+  // ---------------------------
+  ModelCreationJob leo_creation_job(
+      &leo_magnus_, "data/models/leo_magnus/leo_magnus.obj", true, false);
+  ModelCreationJob sword_creation_job(
+      &sword_, "data/models/leo_magnus/sword.obj", true, false);
+  ModelCreationJob platform_creation_job(
+      &sandstone_platform_,
+      "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
+  ModelCreationJob chest_creation_job(
+      &treasure_chest_, "data/models/treasure_chest/treasure_chest_2k.obj",
+      true, true);
+
+  LoadModelToGpuJob load_leo_to_gpu(&leo_magnus_);
+  load_leo_to_gpu.AddDependency(&leo_creation_job);
+  LoadModelToGpuJob load_sword_to_gpu(&sword_);
+  load_sword_to_gpu.AddDependency(&sword_creation_job);
+  LoadModelToGpuJob load_platform_to_gpu(&sandstone_platform_);
+  load_platform_to_gpu.AddDependency(&platform_creation_job);
+  LoadModelToGpuJob load_chest_to_gpu(&treasure_chest_);
+  load_chest_to_gpu.AddDependency(&chest_creation_job);
+
+  job_system_.AddJob(&leo_creation_job);
+  job_system_.AddJob(&sword_creation_job);
+  job_system_.AddJob(&platform_creation_job);
+  job_system_.AddJob(&chest_creation_job);
+
+  job_system_.AddJob(&load_leo_to_gpu);
+  job_system_.AddJob(&load_sword_to_gpu);
+  job_system_.AddJob(&load_platform_to_gpu);
+  job_system_.AddJob(&load_chest_to_gpu);
 
   job_system_.LaunchWorkers(5);
-
-  // TODO: Crée la HDR cubemap texture en 1er pour pouvoir générer l'irrandiane cubemap penfant qu'on decompress les autres textures.
   
   job_system_.JoinWorkers();
 
   SetPipelineSamplerTexUnits();
-  // For the time being the CreateHdrCubemap function is dependent of the result 
-  // of the job system. -> TODO: create a main thread job to create the hdr cubemap.
-  CreateHdrCubemap();
-  CreateIrradianceCubeMap();
-  CreatePrefilterCubeMap();
-  CreateBrdfLut();
 
   // Important to call glViewport with the screen dimension after the creation
   // of the different IBL pre-computed textures.
@@ -481,6 +529,16 @@ void FinalScene::SetPipelineSamplerTexUnits() noexcept {
   bloom_hdr_pipeline_.Bind();
   bloom_hdr_pipeline_.SetInt("hdrBuffer", 0);
   bloom_hdr_pipeline_.SetInt("bloomBlur", 1);
+}
+
+void FinalScene::CreateIblMaps() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+  CreateHdrCubemap();
+  CreateIrradianceCubeMap();
+  CreatePrefilterCubeMap();
+  CreateBrdfLut();
 }
 
 void FinalScene::CreateHdrCubemap() noexcept {
@@ -945,41 +1003,73 @@ void FinalScene::LoadMeshesToGpu() noexcept {
   screen_quad_.LoadToGpu();
 }
 
-void FinalScene::CreateModels() noexcept {
-#ifdef TRACY_ENABLE
-  ZoneScoped;
-#endif  // TRACY_ENABLE
-  leo_magnus_.Load("data/models/leo_magnus/leo_magnus.obj", true, false);
-  leo_magnus_.GenerateModelSphereBoundingVolume();
+void FinalScene::CreateModelInitializationJobs() {
+  //ModelCreationJob leo_creation_job(
+  //    &leo_magnus_, "data/models/leo_magnus/leo_magnus.obj", true, false);
+  //ModelCreationJob sword_creation_job(
+  //    &sword_, "data/models/leo_magnus/sword.obj", true, false);
+  //ModelCreationJob platform_creation_job(
+  //    &sandstone_platform_,
+  //    "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
+  //ModelCreationJob chest_creation_job(
+  //    &treasure_chest_, "data/models/treasure_chest/treasure_chest_2k.obj",
+  //    true, true);
 
-  sword_.Load("data/models/leo_magnus/sword.obj", true, false);
-  sword_.GenerateModelSphereBoundingVolume();
+  //LoadModelToGpuJob load_leo_to_gpu(&leo_magnus_);
+  //load_leo_to_gpu.AddDependency(&leo_creation_job);
+  //LoadModelToGpuJob load_sword_to_gpu(&sword_);
+  //load_sword_to_gpu.AddDependency(&sword_creation_job);
+  //LoadModelToGpuJob load_platform_to_gpu(&sandstone_platform_);
+  //load_platform_to_gpu.AddDependency(&platform_creation_job);
+  //LoadModelToGpuJob load_chest_to_gpu(&treasure_chest_);
+  //load_chest_to_gpu.AddDependency(&chest_creation_job);
 
-  sandstone_platform_.Load(
-      "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
-  sandstone_platform_.GenerateModelSphereBoundingVolume();
+  //job_system_.AddJob(&leo_creation_job);
+  //job_system_.AddJob(&sword_creation_job);
+  //job_system_.AddJob(&platform_creation_job);
+  //job_system_.AddJob(&chest_creation_job);
 
-  treasure_chest_.Load("data/models/treasure_chest/treasure_chest_2k.obj", true,
-                       true);
-  treasure_chest_.GenerateModelSphereBoundingVolume();
+  //job_system_.AddJob(&load_leo_to_gpu);
+  //job_system_.AddJob(&load_sword_to_gpu);
+  //job_system_.AddJob(&load_platform_to_gpu);
+  //job_system_.AddJob(&load_chest_to_gpu);
 }
 
-void FinalScene::LoadModelsToGpu() noexcept {
-#ifdef TRACY_ENABLE
-  ZoneScoped;
-#endif  // TRACY_ENABLE
-  leo_magnus_.LoadToGpu();
-  sword_.LoadToGpu();
-  sandstone_platform_.LoadToGpu();
-  treasure_chest_.LoadToGpu();
-}
+//void FinalScene::CreateModels() noexcept {
+//#ifdef TRACY_ENABLE
+//  ZoneScoped;
+//#endif  // TRACY_ENABLE
+//  leo_magnus_.Load("data/models/leo_magnus/leo_magnus.obj", true, false);
+//  leo_magnus_.GenerateModelSphereBoundingVolume();
+//
+//  sword_.Load("data/models/leo_magnus/sword.obj", true, false);
+//  sword_.GenerateModelSphereBoundingVolume();
+//
+//  sandstone_platform_.Load(
+//      "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
+//  sandstone_platform_.GenerateModelSphereBoundingVolume();
+//
+//  treasure_chest_.Load("data/models/treasure_chest/treasure_chest_2k.obj", true,
+//                       true);
+//  treasure_chest_.GenerateModelSphereBoundingVolume();
+//}
+//
+//void FinalScene::LoadModelsToGpu() noexcept {
+//#ifdef TRACY_ENABLE
+//  ZoneScoped;
+//#endif  // TRACY_ENABLE
+//  leo_magnus_.LoadToGpu();
+//  sword_.LoadToGpu();
+//  sandstone_platform_.LoadToGpu();
+//  treasure_chest_.LoadToGpu();
+//}
 
 void FinalScene::CreateMaterialsCreationJobs() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
-  constexpr std::int8_t texture_count = 38;
+  constexpr std::int8_t texture_count = 37;
 
   std::array<std::shared_ptr<FileBuffer>, texture_count> file_buffers{};
   std::array<std::shared_ptr<ImageBuffer>, texture_count> image_buffers{};
@@ -987,11 +1077,16 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
   std::array<TextureParameters, texture_count> texture_inputs{
     // Gold Material.
     // --------------
-    TextureParameters("data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png", GL_CLAMP_TO_EDGE, GL_LINEAR, true, false),
-    TextureParameters("data/textures/pbr/gold/gold-scuffed_normal.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
-    TextureParameters("data/textures/pbr/gold/gold-scuffed_metallic.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
-    TextureParameters("data/textures/pbr/gold/gold-scuffed_roughness.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
-    TextureParameters("data/textures/pbr/gold/ao.png", GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png", 
+    GL_CLAMP_TO_EDGE, GL_LINEAR, true, false),
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_normal.png", 
+    GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_metallic.png", 
+    GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
+    TextureParameters("data/textures/pbr/gold/gold-scuffed_roughness.png", 
+    GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
+    TextureParameters("data/textures/pbr/gold/ao.png", 
+    GL_CLAMP_TO_EDGE, GL_LINEAR, false, false),
 
     // Leo Magnus' textures.
     // ---------------------
@@ -1092,8 +1187,8 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
 
     // HDR equirectangle map.
     // ----------------------
-    TextureParameters("data/textures/hdr/cape_hill_4k.hdr", 
-      GL_CLAMP_TO_EDGE, GL_LINEAR, false, true, true),
+    //TextureParameters("data/textures/hdr/cape_hill_4k.hdr", GL_CLAMP_TO_EDGE,
+    //                  GL_LINEAR, false, true, true),
   };
 
   std::array<GLuint*, texture_count> texture_ids { 
@@ -1125,7 +1220,7 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
     texture_ids[i + 34] = &treasure_chest_textures_[i];
   }
 
-  texture_ids[37] = &equirectangular_map_;
+  //texture_ids[37] = &equirectangular_map_;
 
   img_file_loading_jobs_.reserve(texture_count);
   img_decompressing_jobs_.reserve(texture_count);
@@ -1986,4 +2081,70 @@ SceneInitializationJob::~SceneInitializationJob() noexcept {
 void SceneInitializationJob::Work() noexcept {
   // Tracy already in the scope of the function.
   function_();
+}
+
+ModelCreationJob::ModelCreationJob(Model* model, const std::string_view file_path,
+                               const bool gamma, const bool flip_y) noexcept
+    : Job(JobType::kModelLoading),
+      model_(model),
+      file_path_(file_path),
+      gamma_(gamma),
+      flip_y_(flip_y) {}
+
+ModelCreationJob::ModelCreationJob(ModelCreationJob&& other) noexcept
+    : Job(std::move(other)),
+      model_(std::move(other.model_)),
+      file_path_(std::move(other.file_path_)),
+      gamma_(std::move(other.gamma_)),
+      flip_y_(std::move(other.flip_y_)) {
+  other.model_ = nullptr;
+}
+
+ModelCreationJob& ModelCreationJob::operator=(ModelCreationJob&& other) noexcept {
+  Job::operator=(std::move(other));
+  model_ = std::move(other.model_);
+  file_path_ = std::move(other.file_path_);
+  gamma_ = std::move(other.gamma_);
+  flip_y_ = std::move(other.flip_y_);
+
+  other.model_ = nullptr;
+
+  return *this;
+}
+
+ModelCreationJob::~ModelCreationJob() noexcept { model_ = nullptr; }
+
+void ModelCreationJob::Work() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
+  model_->Load(file_path_, gamma_, flip_y_);
+  model_->GenerateModelSphereBoundingVolume();
+}
+
+LoadModelToGpuJob::LoadModelToGpuJob(Model* model) noexcept :
+  Job(JobType::kMainThread),
+  model_(model) {}
+
+LoadModelToGpuJob::LoadModelToGpuJob(LoadModelToGpuJob&& other) noexcept :
+  Job(std::move(other)),
+  model_(std::move(other.model_))
+{}
+
+LoadModelToGpuJob& LoadModelToGpuJob::operator=(LoadModelToGpuJob&& other) noexcept {
+  Job::operator=(std::move(other));
+  model_ = std::move(other.model_);
+
+  return *this;
+}
+
+LoadModelToGpuJob::~LoadModelToGpuJob() noexcept { model_ = nullptr; }
+
+void LoadModelToGpuJob::Work() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
+  model_->LoadToGpu();
 }

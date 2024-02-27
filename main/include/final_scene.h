@@ -122,6 +122,45 @@ class LoadFileFromDiskJob final : public Job {
   std::string file_path_{};
 };
 
+/*
+ * @brief ModelCreationJob is a job that loads the model from the disk and
+ * generates the bounding sphere of the mesh.
+ */
+class ModelCreationJob final : public Job {
+public:
+  ModelCreationJob(Model* model, std::string_view file_path, bool gamma,
+                 bool flip_y) noexcept;
+  ModelCreationJob(ModelCreationJob&& other) noexcept;
+  ModelCreationJob& operator=(ModelCreationJob&& other) noexcept;
+  ModelCreationJob(const ModelCreationJob& other) noexcept = delete;
+  ModelCreationJob& operator=(const ModelCreationJob& other) noexcept = delete;
+  ~ModelCreationJob() noexcept override;
+
+  void Work() noexcept override;
+
+private:
+  Model* model_ = nullptr;
+  std::string file_path_{};
+  bool gamma_ = false;
+  bool flip_y_ = false;
+};
+
+class LoadModelToGpuJob final : public Job {
+ public:
+  LoadModelToGpuJob(Model* model) noexcept;
+  LoadModelToGpuJob(LoadModelToGpuJob&& other) noexcept;
+  LoadModelToGpuJob& operator=(LoadModelToGpuJob&& other) noexcept;
+  LoadModelToGpuJob(const LoadModelToGpuJob& other) noexcept = delete;
+  LoadModelToGpuJob& operator=(const LoadModelToGpuJob& other) noexcept =
+      delete;
+  ~LoadModelToGpuJob() noexcept override;
+
+  void Work() noexcept override;
+
+ private:
+  Model* model_ = nullptr;
+};
+
 class FinalScene final : public Scene {
 public:
   void Begin() override;
@@ -340,14 +379,16 @@ private:
 
   void CreateMeshes() noexcept;
   void LoadMeshesToGpu() noexcept;
-  void CreateModels() noexcept;
-  void LoadModelsToGpu() noexcept;
+  void CreateModelInitializationJobs();
+  //void CreateModels() noexcept;
+  //void LoadModelsToGpu() noexcept;
   void CreateMaterialsCreationJobs() noexcept;
 
   void CreateFrameBuffers() noexcept;
 
   void CreateSsaoData() noexcept;
 
+  void CreateIblMaps() noexcept;
   void CreateHdrCubemap() noexcept;
   void CreateIrradianceCubeMap() noexcept;
   void CreatePrefilterCubeMap() noexcept;
