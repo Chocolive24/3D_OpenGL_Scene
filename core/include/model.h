@@ -15,6 +15,7 @@ public:
   Model() = default;
 
   void Load(std::string_view path, bool gamma = false, bool flip_y = true);
+  void LoadToGpu() noexcept;
   void Destroy() noexcept;
   void SetupModelMatrixBuffer(const glm::mat4* model_matrix_data,
                               const std::size_t& size, GLenum buffer_usage);

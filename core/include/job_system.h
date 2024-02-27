@@ -1,12 +1,9 @@
 #pragma once
 
-#include "file_utility.h"
 
-#include <string>
 #include <vector>
 #include <thread>
 #include <future>
-#include <memory>
 
 enum class JobStatus : std::int16_t {
   kStarted,
@@ -19,13 +16,14 @@ enum class JobType : std::int16_t {
   kImageFileLoading,
   kImageFileDecompressing,
   kShaderFileLoading,
+  kMeshCreating,
+  kModelLoading,
   kMainThread,
-  kOther
 };
 
 class Job {
  public:
-  Job(JobType job_type) : type_(job_type){};
+  Job(const JobType job_type) : type_(job_type){}
 
   Job(Job&& other) noexcept;
   Job& operator=(Job&& other) noexcept;
@@ -38,13 +36,13 @@ class Job {
 
   void WaitUntilJobIsDone() const noexcept;
 
-  void AddDependency(Job* dependency) noexcept;
+  void AddDependency(const Job* dependency) noexcept;
 
-  const bool IsDone() const noexcept { return status_ == JobStatus::kDone; }
-  const bool HasStarted() const noexcept { return status_ == JobStatus::kStarted; }
+  bool IsDone() const noexcept { return status_ == JobStatus::kDone; }
+  bool HasStarted() const noexcept { return status_ == JobStatus::kStarted; }
 
 
-  const JobType type() const noexcept { return type_; }
+  JobType type() const noexcept { return type_; }
 
  protected:
   std::vector<const Job*> dependencies_;
@@ -73,7 +71,7 @@ class JobSystem {
   JobSystem() noexcept = default;
   void AddJob(Job* job) noexcept;
   void LaunchWorkers(int worker_count) noexcept;
-  void RunMainThreadWorkLoop(std::vector<Job*>& jobs) noexcept;
+
   void JoinWorkers() noexcept;
 
  private:
@@ -84,5 +82,9 @@ class JobSystem {
   std::vector<Job*> img_file_loading_jobs_{};
   std::vector<Job*> img_decompressing_jobs_{};
   std::vector<Job*> shader_file_loading_jobs_{};
-  std::vector<Job*> main_thread_jobs{};
+  std::vector<Job*> mesh_creating_jobs_{};
+  std::vector<Job*> model_loading_jobs_{};
+  std::vector<Job*> main_thread_jobs_{};
+
+  void RunMainThreadWorkLoop(std::vector<Job*>& jobs) noexcept;
 };

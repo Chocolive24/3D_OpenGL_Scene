@@ -39,6 +39,8 @@ public:
   void CreateScreenQuad() noexcept;
   void CreateSphere() noexcept;
 
+  void LoadToGpu();
+
   void SetupModelMatrixBuffer(const glm::mat4* model_matrix_data, 
                               const std::size_t& size, GLenum buffer_usage);
   void SetModelMatrixBufferSubData(const glm::mat4* model_matrix_data,
@@ -75,6 +77,4 @@ private:
   VertexBufferObject<glm::mat4> model_matrix_buffer_;
   ElementBufferObject ebo_;
   BoundingSphere bounding_volume_;
-
-  void SetupMesh();
 };

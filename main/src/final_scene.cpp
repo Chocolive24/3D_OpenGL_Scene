@@ -17,15 +17,39 @@ void FinalScene::Begin() {
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
+  SceneInitializationJob create_framebuffers([this]() { CreateFrameBuffers(); },
+                                             JobType::kMainThread);
+  job_system_.AddJob(&create_framebuffers);
+
   CreatePipelineCreationJobs();
   CreateMaterialsCreationJobs();
 
-  job_system_.LaunchWorkers(3);
+  // Meshes initialization jobs.
+  // ---------------------------
+  SceneInitializationJob create_meshes_job([this]() { CreateMeshes(); }, 
+    JobType::kMeshCreating);
 
-  CreateMeshes();
-  CreateModels();
+  SceneInitializationJob load_meshes_to_gpu_job([this]() { LoadMeshesToGpu(); },
+    JobType::kMainThread);
+  load_meshes_to_gpu_job.AddDependency(&create_meshes_job);
 
-  CreateFrameBuffers();
+  // Models initialization jobs.
+  // ---------------------------
+  SceneInitializationJob create_models_job([this]() { CreateModels(); }, 
+                                           JobType::kModelLoading);
+
+  SceneInitializationJob load_models_to_gpu_job([this]() { LoadModelsToGpu(); },
+                                                JobType::kMainThread);
+  load_meshes_to_gpu_job.AddDependency(&create_models_job);
+
+  job_system_.AddJob(&create_meshes_job);
+  job_system_.AddJob(&load_meshes_to_gpu_job);
+  job_system_.AddJob(&create_models_job);
+  job_system_.AddJob(&load_models_to_gpu_job);
+
+  job_system_.LaunchWorkers(5);
+
+  // TODO: Crée la HDR cubemap texture en 1er pour pouvoir générer l'irrandiane cubemap penfant qu'on decompress les autres textures.
   
   job_system_.JoinWorkers();
 
@@ -400,66 +424,6 @@ void FinalScene::CreatePipelineCreationJobs() noexcept {
 }
 
 void FinalScene::SetPipelineSamplerTexUnits() noexcept {
-   //equirect_to_cubemap_pipe_.Begin(
-   //   "data/shaders/transform/local_transform.vert",
-   //   "data/shaders/hdr/equirectangular_to_cubemap.frag");
-
-   //irradiance_pipeline_.Begin(
-   //    "data/shaders/transform/local_transform.vert",
-   //    "data/shaders/pbr/irradiance_convultion.frag");
-
-   //prefilter_pipeline_.Begin(
-   //    "data/shaders/transform/local_transform.vert",
-   //    "data/shaders/pbr/prefilter.frag");
-
-   //brdf_pipeline_.Begin("data/shaders/pbr/brdf.vert",
-   //                     "data/shaders/pbr/brdf.frag");
-
-   //geometry_pipeline_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
-   //                         "data/shaders/pbr/pbr_g_buffer.frag");
-
-   //arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
-   //                         "data/shaders/pbr/arm_pbr_g_buffer.frag");
-
-   //emissive_arm_geometry_pipe_.Begin("data/shaders/pbr/pbr_g_buffer.vert",
-   //    "data/shaders/pbr/emissive_arm_pbr_g_buffer.frag");
-
-   //instanced_geometry_pipeline_.Begin("data/shaders/pbr/instanced_pbr_g_buffer.vert",
-   //                                   "data/shaders/pbr/pbr_g_buffer.frag");
-
-  /* ssao_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                        "data/shaders/ssao/ssao.frag");
-   ssao_blur_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                             "data/shaders/ssao/ssao_blur.frag");
-
-   shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
-                              "data/shaders/shadow/simple_depth.frag");
-
-   point_shadow_mapping_pipe_.Begin("data/shaders/shadow/simple_depth.vert",
-                              "data/shaders/shadow/point_light_simple_depth.frag");
-
-   instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
-                                        "data/shaders/shadow/simple_depth.frag");
-   point_instanced_shadow_mapping_pipe_.Begin("data/shaders/shadow/instanced_simple_depth.vert",
-                                              "data/shaders/shadow/point_light_simple_depth.frag");
-
-   pbr_lighting_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                                "data/shaders/pbr/deferred_pbr.frag");
-
-   debug_lights_pipeline_.Begin("data/shaders/transform/transform.vert",
-                                "data/shaders/visual_debug/light_debug.frag");
-
-   cubemap_pipeline_.Begin("data/shaders/hdr/hdr_cubemap.vert",
-                           "data/shaders/hdr/hdr_cubemap.frag");
-  
-   down_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                               "data/shaders/bloom/down_sample.frag");
-   up_sample_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                             "data/shaders/bloom/up_sample.frag");
-
-   bloom_hdr_pipeline_.Begin("data/shaders/transform/screen_transform.vert",
-                       "data/shaders/hdr/hdr.frag");*/
-
   // Setup the sampler2D uniforms.
   // -----------------------------
   geometry_pipeline_.Bind();
@@ -905,24 +869,41 @@ void FinalScene::CreateMeshes() noexcept {
 #endif  // TRACY_ENABLE
 
   sphere_.CreateSphere();
+  // Generate bounding sphere volume to test intersection with the camera frustum.
+  sphere_.GenerateBoundingSphere(); 
 
+  cubemap_mesh_.CreateCubeMap();
+
+  screen_quad_.CreateScreenQuad();
+}
+
+void FinalScene::LoadMeshesToGpu() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+
+  sphere_.LoadToGpu();
+
+  // Load sphere model matrices to the GPU.
+  // --------------------------------------
   sphere_model_matrices_.reserve(kSphereCount_);
   visible_sphere_model_matrices_.reserve(kSphereCount_);
 
   model_ = glm::mat4(1.f);
-  model_ = glm::translate(model_, treasure_chest_pos_ + 
-                         glm::vec3(3.f, 0.6f, -3.5f));
+  model_ =
+      glm::translate(model_, treasure_chest_pos_ + glm::vec3(3.f, 0.6f, -3.5f));
   model_ = glm::scale(model_, glm::vec3(0.75f));
   sphere_model_matrices_.push_back(model_);
 
   model_ = glm::mat4(1.f);
-  model_ = glm::translate(model_, treasure_chest_pos_ + glm::vec3(-3.f, 0.55f, 3.f));
+  model_ =
+      glm::translate(model_, treasure_chest_pos_ + glm::vec3(-3.f, 0.55f, 3.f));
   model_ = glm::scale(model_, glm::vec3(0.55f));
   sphere_model_matrices_.push_back(model_);
 
   model_ = glm::mat4(1.f);
-  model_ =
-      glm::translate(model_, treasure_chest_pos_ + glm::vec3(1.5f, 0.6f, 1.75f));
+  model_ = glm::translate(model_,
+                          treasure_chest_pos_ + glm::vec3(1.5f, 0.6f, 1.75f));
   model_ = glm::scale(model_, glm::vec3(0.6f));
   sphere_model_matrices_.push_back(model_);
 
@@ -945,8 +926,8 @@ void FinalScene::CreateMeshes() noexcept {
   sphere_model_matrices_.push_back(model_);
 
   model_ = glm::mat4(1.f);
-  model_ =
-      glm::translate(model_, treasure_chest_pos_ + glm::vec3(-2.75f, 0.8f, 1.f));
+  model_ = glm::translate(model_,
+                          treasure_chest_pos_ + glm::vec3(-2.75f, 0.8f, 1.f));
   model_ = glm::scale(model_, glm::vec3(0.8f));
   sphere_model_matrices_.push_back(model_);
 
@@ -957,15 +938,11 @@ void FinalScene::CreateMeshes() noexcept {
   sphere_model_matrices_.push_back(model_);
 
   sphere_.SetupModelMatrixBuffer(sphere_model_matrices_.data(),
-                                 sphere_model_matrices_.size(), GL_DYNAMIC_DRAW);
+                                 sphere_model_matrices_.size(),
+                                 GL_DYNAMIC_DRAW);
 
-  // Generate bounding sphere volume to test intersection with the camera frustum.
-  sphere_.GenerateBoundingSphere(); 
-
-  cube_.GenerateBoundingSphere();
-
-  cubemap_mesh_.CreateCubeMap();
-  screen_quad_.CreateScreenQuad();
+  cubemap_mesh_.LoadToGpu();
+  screen_quad_.LoadToGpu();
 }
 
 void FinalScene::CreateModels() noexcept {
@@ -974,14 +951,27 @@ void FinalScene::CreateModels() noexcept {
 #endif  // TRACY_ENABLE
   leo_magnus_.Load("data/models/leo_magnus/leo_magnus.obj", true, false);
   leo_magnus_.GenerateModelSphereBoundingVolume();
+
   sword_.Load("data/models/leo_magnus/sword.obj", true, false);
   sword_.GenerateModelSphereBoundingVolume();
+
   sandstone_platform_.Load(
       "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
   sandstone_platform_.GenerateModelSphereBoundingVolume();
+
   treasure_chest_.Load("data/models/treasure_chest/treasure_chest_2k.obj", true,
                        true);
   treasure_chest_.GenerateModelSphereBoundingVolume();
+}
+
+void FinalScene::LoadModelsToGpu() noexcept {
+#ifdef TRACY_ENABLE
+  ZoneScoped;
+#endif  // TRACY_ENABLE
+  leo_magnus_.LoadToGpu();
+  sword_.LoadToGpu();
+  sandstone_platform_.LoadToGpu();
+  treasure_chest_.LoadToGpu();
 }
 
 void FinalScene::CreateMaterialsCreationJobs() noexcept {
@@ -1964,9 +1954,36 @@ PipelineCreationJob::~PipelineCreationJob() noexcept {
 void PipelineCreationJob::Work() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
-  //ZoneText(reinterpret_cast<const char*>(fragment_shader_buffer_.get()->data),
-  //         vertex_shader_buffer_.get()->size);
 #endif  // TRACY_ENABLE
 
   pipeline_->Begin(*vertex_shader_buffer_, *fragment_shader_buffer_);
+}
+
+SceneInitializationJob::SceneInitializationJob(
+    const std::function<void()>& func, const JobType job_type) noexcept
+    :
+  Job(job_type),
+  function_(func)
+{}
+
+SceneInitializationJob::SceneInitializationJob(
+    SceneInitializationJob&& other) noexcept :
+  Job(std::move(other)),
+  function_(std::move(other.function_))
+{}
+
+SceneInitializationJob& SceneInitializationJob::operator=(
+    SceneInitializationJob&& other) noexcept {
+  Job::operator=(std::move(other));
+  function_ = std::move(other.function_);
+
+  return *this;
+}
+
+SceneInitializationJob::~SceneInitializationJob() noexcept {
+}
+
+void SceneInitializationJob::Work() noexcept {
+  // Tracy already in the scope of the function.
+  function_();
 }

@@ -48,7 +48,7 @@ class PipelineCreationJob final : public Job {
    PipelineCreationJob& operator=(
        const PipelineCreationJob& other) noexcept = delete;
        
-   ~PipelineCreationJob() noexcept;
+   ~PipelineCreationJob() noexcept override;
 
    void Work() noexcept override;
 
@@ -71,7 +71,7 @@ class LoadTextureToGpuJob final : public Job {
   LoadTextureToGpuJob& operator=(const LoadTextureToGpuJob& other) noexcept =
       delete;
 
-  ~LoadTextureToGpuJob() noexcept;
+  ~LoadTextureToGpuJob() noexcept override;
 
   void Work() noexcept override;
 
@@ -82,8 +82,25 @@ class LoadTextureToGpuJob final : public Job {
   TextureParameters texture_param_;
 };
 
-// Other thread's jobs.
-// --------------------
+class SceneInitializationJob final : public Job {
+public:
+  SceneInitializationJob(const std::function<void()>& func, 
+                         JobType job_type) noexcept;
+
+  SceneInitializationJob(SceneInitializationJob&& other) noexcept;
+  SceneInitializationJob& operator=(SceneInitializationJob&& other) noexcept;
+  SceneInitializationJob(const SceneInitializationJob& other) noexcept = delete;
+  SceneInitializationJob& operator=(
+      const SceneInitializationJob& other) noexcept = delete;
+
+  ~SceneInitializationJob() noexcept override;
+
+  void Work() noexcept override;
+
+private:
+  std::function<void()> function_;
+};
+
 class LoadFileFromDiskJob final : public Job {
  public:
   LoadFileFromDiskJob(std::string file_path,
@@ -96,7 +113,7 @@ class LoadFileFromDiskJob final : public Job {
   LoadFileFromDiskJob& operator=(const LoadFileFromDiskJob& other) noexcept =
       delete;
 
-  ~LoadFileFromDiskJob() noexcept;
+  ~LoadFileFromDiskJob() noexcept override;
 
   void Work() noexcept override;
 
@@ -114,14 +131,16 @@ public:
   void DrawImGui() override;
 
 private:
-  Renderer renderer_;
-  Camera camera_;
+  Renderer renderer_{};
 
-  Frustum camera_frustum_;
+  Camera camera_{};
+  Frustum camera_frustum_{};
 
-  glm::mat4 model_, view_, projection_;
+  glm::mat4 model_ = glm::mat4(1.0f);
+  glm::mat4 view_ = glm::mat4(1.0f);
+  glm::mat4 projection_ = glm::mat4(1.0f);
 
-  JobSystem job_system_;
+  JobSystem job_system_{};
 
   // Main thread's jobs.
   // -------------------
@@ -195,8 +214,10 @@ private:
   FrameBufferObject g_buffer_;
   FrameBufferObject ssao_fbo_;
   FrameBufferObject ssao_blur_fbo_;
-  GLuint shadow_map_fbo_, shadow_map_;
-  GLuint point_shadow_map_fbo_, point_shadow_cubemap_;
+  GLuint shadow_map_fbo_ = 0;
+  GLuint shadow_map_ = 0;
+  GLuint point_shadow_map_fbo_ = 0;
+  GLuint point_shadow_cubemap_ = 0;
   FrameBufferObject hdr_fbo_;
 
   // IBL textures data.
@@ -318,7 +339,9 @@ private:
   void SetPipelineSamplerTexUnits() noexcept;
 
   void CreateMeshes() noexcept;
+  void LoadMeshesToGpu() noexcept;
   void CreateModels() noexcept;
+  void LoadModelsToGpu() noexcept;
   void CreateMaterialsCreationJobs() noexcept;
 
   void CreateFrameBuffers() noexcept;

@@ -12,8 +12,6 @@ Mesh::Mesh(const std::vector<Vertex>& vertices,
            const std::vector<GLuint>& indices) {
   vertices_ = vertices;
   indices_ = indices;
-
-  SetupMesh();
 }
 
 Mesh::Mesh(const std::vector<Vertex>& vertices,
@@ -22,8 +20,6 @@ Mesh::Mesh(const std::vector<Vertex>& vertices,
   vertices_ = vertices;
   indices_ = indices;
   textures_ = textures;
-
-  SetupMesh();
 }
 
 Mesh::Mesh(Mesh&& other) noexcept {
@@ -77,8 +73,6 @@ void Mesh::CreateQuad() noexcept {
       0, 3, 1, 1, 3, 2, 
       0, 1, 3, 1, 2, 3,
   };
-
-  SetupMesh();
 }
 
 void Mesh::CreateCube() noexcept {
@@ -206,8 +200,6 @@ void Mesh::CreateCube() noexcept {
 
     // The bitangent vectors are calculated in the vertex shader.
   }
-
-  SetupMesh();
 }
 
 void Mesh::CreateCubeMap() noexcept {
@@ -289,8 +281,6 @@ void Mesh::CreateCubeMap() noexcept {
       16, 17, 19, 17, 18, 19,  // Right face.
       20, 21, 22, 22, 21, 23,  // Left face.
   };
-
-  SetupMesh();
 }
 
 void Mesh::CreateScreenQuad() noexcept {
@@ -311,8 +301,6 @@ void Mesh::CreateScreenQuad() noexcept {
   constexpr GLuint kIndiceCount = 6;
   indices_.reserve(kIndiceCount);
   indices_ = {0, 1, 3, 1, 2, 3};
-
-  SetupMesh();
 }
 
 void Mesh::CreateSphere() noexcept {
@@ -373,8 +361,6 @@ void Mesh::CreateSphere() noexcept {
     }
     odd_row = !odd_row;
   }
-
-  SetupMesh();
 }
 
 void Mesh::Destroy() noexcept {
@@ -432,7 +418,7 @@ void Mesh::GenerateBoundingSphere() {
   bounding_volume_ = BoundingSphere(center, radius);
 }
 
-void Mesh::SetupMesh() {
+void Mesh::LoadToGpu() {
   vao_.Create();
   vbo_.Create();
   ebo_.Create();

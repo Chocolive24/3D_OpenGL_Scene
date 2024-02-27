@@ -1,18 +1,15 @@
 #include "texture.h"
-#include "error.h"
-#include "file_utility.h"
 
 #ifndef STB_IMAGE_IMPLEMENTATION
 #define STB_IMAGE_IMPLEMENTATION
 #endif
-
+#include <stb_image.h>
 
 #ifdef TRACY_ENABLE
 #include <TracyC.h>
 
 #include <Tracy.hpp>
 #endif  // TRACY_ENABLE
-#include <stb_image.h>
 
 #include <iostream>
 

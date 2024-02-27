@@ -59,6 +59,12 @@ void Model::Load(std::string_view path, bool gamma, bool flip_y) {
   ProcessNode(scene->mRootNode, scene, gamma, flip_y);
 }
 
+void Model::LoadToGpu() noexcept {
+  for (auto& mesh : meshes_) {
+    mesh.LoadToGpu();
+  }
+}
+
 void Model::ProcessNode(aiNode* node, const aiScene* scene, bool gamma, bool flip_y) {
   // I don't iterates throw all the meshes of the scene directly to be able to
   // set certain mesh as parent of other ones.
