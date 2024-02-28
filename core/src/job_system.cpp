@@ -30,6 +30,17 @@ void Job::WaitUntilJobIsDone() const noexcept {
   future_.get(); 
 }
 
+bool Job::AreDependencyDone() const noexcept {
+  for (const auto& dependency : dependencies_)
+  {
+    if (!dependency->IsDone())
+    {
+      return false;
+    }
+  }
+  return true;
+}
+
 void Job::AddDependency(const Job* dependency) noexcept {
   dependencies_.push_back(dependency);
 }

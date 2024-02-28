@@ -19,9 +19,11 @@ void FinalScene::Begin() {
 
   // Framebuffer job.
   // ----------------
-  SceneInitializationJob create_framebuffers([this]() { CreateFrameBuffers(); },
+  // TODO mettre tous les jobs dans le .h
+
+  create_framebuffers = FunctionExecutionJob([this]() { CreateFrameBuffers(); },
                                              JobType::kMainThread);
-  job_system_.AddJob(&create_framebuffers);
+  main_thread_jobs_.push(&create_framebuffers);
 
   // Pipeline jobs.
   // -------------
@@ -29,15 +31,16 @@ void FinalScene::Begin() {
 
   // Meshes initialization jobs.
   // ---------------------------
-  SceneInitializationJob create_meshes_job([this]() { CreateMeshes(); },
+  create_meshes_job_ = FunctionExecutionJob([this]() { CreateMeshes(); },
                                            JobType::kMeshCreating);
 
-  SceneInitializationJob load_meshes_to_gpu_job([this]() { LoadMeshesToGpu(); },
+  load_meshes_to_gpu_job_ = FunctionExecutionJob(
+      [this]() { LoadMeshesToGpu(); },
                                                 JobType::kMainThread);
-  load_meshes_to_gpu_job.AddDependency(&create_meshes_job);
+  load_meshes_to_gpu_job_.AddDependency(&create_meshes_job_);
 
-  job_system_.AddJob(&create_meshes_job);
-  job_system_.AddJob(&load_meshes_to_gpu_job);
+  job_system_.AddJob(&create_meshes_job_);
+  main_thread_jobs_.push(&load_meshes_to_gpu_job_);
 
   // Texture jobs.
   // -------------
@@ -48,86 +51,65 @@ void FinalScene::Begin() {
   auto file_buffer = std::make_shared<FileBuffer>();
   auto image_buffer = std::make_shared<ImageBuffer>();
 
-  LoadFileFromDiskJob load_hdr_map{hdr_map_params.image_file_path, file_buffer,
+  load_hdr_map_ = LoadFileFromDiskJob{hdr_map_params.image_file_path, file_buffer,
                                    JobType::kImageFileLoading};
 
-  ImageFileDecompressingJob decomp_hdr_map{
+  decomp_hdr_map_ = ImageFileDecompressingJob{
       file_buffer, image_buffer, hdr_map_params.flipped_y, hdr_map_params.hdr};
-  decomp_hdr_map.AddDependency(&load_hdr_map);
+  decomp_hdr_map_.AddDependency(&load_hdr_map_);
 
-  LoadTextureToGpuJob load_hdr_map_to_gpu{image_buffer, &equirectangular_map_,
+  load_hdr_map_to_gpu_ = LoadTextureToGpuJob{image_buffer, &equirectangular_map_,
                                           hdr_map_params};
-  load_hdr_map_to_gpu.AddDependency(&decomp_hdr_map);
+  load_hdr_map_to_gpu_.AddDependency(&decomp_hdr_map_);
 
-  job_system_.AddJob(&load_hdr_map);
-  job_system_.AddJob(&decomp_hdr_map);
-  job_system_.AddJob(&load_hdr_map_to_gpu);
+  job_system_.AddJob(&load_hdr_map_);
+  job_system_.AddJob(&decomp_hdr_map_);
+  main_thread_jobs_.push(&load_hdr_map_to_gpu_);
 
-  SceneInitializationJob init_ibl_maps_job{[this]() { CreateIblMaps(); },
+  init_ibl_maps_job_ = FunctionExecutionJob{[this]() { CreateIblMaps(); },
                                            JobType::kMainThread};
-  init_ibl_maps_job.AddDependency(&load_hdr_map_to_gpu);
-  init_ibl_maps_job.AddDependency(&create_meshes_job);
-  job_system_.AddJob(&init_ibl_maps_job);
+  init_ibl_maps_job_.AddDependency(&load_hdr_map_to_gpu_);
+  init_ibl_maps_job_.AddDependency(&create_meshes_job_);
+  main_thread_jobs_.push(&init_ibl_maps_job_);
 
   CreateMaterialsCreationJobs();
 
   // Models initialization jobs.
   // ---------------------------
-  ModelCreationJob leo_creation_job(
+  leo_creation_job_ = ModelCreationJob(
       &leo_magnus_, "data/models/leo_magnus/leo_magnus.obj", true, false);
-  ModelCreationJob sword_creation_job(
+  sword_creation_job_ = ModelCreationJob(
       &sword_, "data/models/leo_magnus/sword.obj", true, false);
-  ModelCreationJob platform_creation_job(
+  platform_creation_job_ = ModelCreationJob(
       &sandstone_platform_,
       "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
-  ModelCreationJob chest_creation_job(
+  chest_creation_job_ = ModelCreationJob(
       &treasure_chest_, "data/models/treasure_chest/treasure_chest_2k.obj",
       true, true);
 
-  LoadModelToGpuJob load_leo_to_gpu(&leo_magnus_);
-  load_leo_to_gpu.AddDependency(&leo_creation_job);
-  LoadModelToGpuJob load_sword_to_gpu(&sword_);
-  load_sword_to_gpu.AddDependency(&sword_creation_job);
-  LoadModelToGpuJob load_platform_to_gpu(&sandstone_platform_);
-  load_platform_to_gpu.AddDependency(&platform_creation_job);
-  LoadModelToGpuJob load_chest_to_gpu(&treasure_chest_);
-  load_chest_to_gpu.AddDependency(&chest_creation_job);
+  load_leo_to_gpu_ = LoadModelToGpuJob(&leo_magnus_);
+  load_leo_to_gpu_.AddDependency(&leo_creation_job_);
+  load_sword_to_gpu_ = LoadModelToGpuJob(&sword_);
+  load_sword_to_gpu_.AddDependency(&sword_creation_job_);
+  load_platform_to_gpu_ = LoadModelToGpuJob(&sandstone_platform_);
+  load_platform_to_gpu_.AddDependency(&platform_creation_job_);
+  load_chest_to_gpu_ = LoadModelToGpuJob(&treasure_chest_);
+  load_chest_to_gpu_.AddDependency(&chest_creation_job_);
 
-  job_system_.AddJob(&leo_creation_job);
-  job_system_.AddJob(&sword_creation_job);
-  job_system_.AddJob(&platform_creation_job);
-  job_system_.AddJob(&chest_creation_job);
+  job_system_.AddJob(&leo_creation_job_);
+  job_system_.AddJob(&sword_creation_job_);
+  job_system_.AddJob(&platform_creation_job_);
+  job_system_.AddJob(&chest_creation_job_);
 
-  job_system_.AddJob(&load_leo_to_gpu);
-  job_system_.AddJob(&load_sword_to_gpu);
-  job_system_.AddJob(&load_platform_to_gpu);
-  job_system_.AddJob(&load_chest_to_gpu);
+  main_thread_jobs_.push(&load_leo_to_gpu_);
+  main_thread_jobs_.push(&load_sword_to_gpu_);
+  main_thread_jobs_.push(&load_platform_to_gpu_);
+  main_thread_jobs_.push(&load_chest_to_gpu_);
 
   job_system_.LaunchWorkers(5);
-  
-  job_system_.JoinWorkers();
 
-  SetPipelineSamplerTexUnits();
-
-  // Important to call glViewport with the screen dimension after the creation
-  // of the different IBL pre-computed textures.
-  const auto screen_size = Engine::window_size();
-  glViewport(0, 0, screen_size.x, screen_size.y);
-
-  CreateSsaoData();
-
-  camera_.Begin(glm::vec3(0.0f, -3.75f, 15.0f), 45.f, 0.1f, 100.f, -90.f, -10.5f);
-
-  glEnable(GL_DEPTH_TEST);
-  glDepthFunc(GL_LESS);
-
-  glEnable(GL_CULL_FACE);
-  glCullFace(GL_BACK);
-  glFrontFace(GL_CCW);
-
-  glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-
-  ApplyShadowMappingPass();
+  //init_opengl_data_ = FunctionExecutionJob([this]() { InitOpenGLData(); },
+  //                                         JobType::kMainThread);
 }
 
 void FinalScene::End() {
@@ -149,6 +131,34 @@ void FinalScene::End() {
 }
 
 void FinalScene::Update(float dt) {
+  while (!are_all_data_loaded_) {
+    Job* job = nullptr;
+
+    if (!main_thread_jobs_.empty()) {
+      job = main_thread_jobs_.front();
+      if (job->AreDependencyDone()) {
+        job->Execute();
+        main_thread_jobs_.pop();
+      }
+      else
+      {
+        return;
+      }
+    }
+    else {
+      are_all_data_loaded_ = true;
+      break;
+    }
+  }
+
+  if (!is_initialized_)
+  {
+    job_system_.JoinWorkers();
+    InitOpenGLData();
+    is_initialized_ = true;
+    return;
+  }
+
   const auto window_aspect = Engine::window_aspect();
 
   camera_.Update(dt);
@@ -217,11 +227,27 @@ void FinalScene::OnEvent(const SDL_Event& event) {
 
 void FinalScene::DrawImGui() { 
 
+  if (!is_initialized_)
+  {
+    static const auto window_size = Engine::window_size();
+    ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2(window_size.x * 0.4f, window_size.y * 0.35f),
+                            ImGuiCond_Once);
+
+    ImGui::Begin("Loading...");
+
+    ImGui::TextWrapped("Loading...");
+
+    ImGui::End();
+
+    return;
+  }
+
   if (!is_help_window_open_) {
     return;
   }
 
-  ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_FirstUseEver);
+  ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Once);
 
   if (ImGui::Begin("Scene Controls and Settings.", &is_help_window_open_)) {
 
@@ -351,6 +377,31 @@ void FinalScene::DrawImGui() {
   ImGui::End();
 }
 
+void FinalScene::InitOpenGLData() {
+  SetPipelineSamplerTexUnits();
+
+  // Important to call glViewport with the screen dimension after the creation
+  // of the different IBL pre-computed textures.
+  const auto screen_size = Engine::window_size();
+  glViewport(0, 0, screen_size.x, screen_size.y);
+
+  CreateSsaoData();
+
+  camera_.Begin(glm::vec3(0.0f, -3.75f, 15.0f), 45.f, 0.1f, 100.f, -90.f,
+                -10.5f);
+
+  glEnable(GL_DEPTH_TEST);
+  glDepthFunc(GL_LESS);
+
+  glEnable(GL_CULL_FACE);
+  glCullFace(GL_BACK);
+  glFrontFace(GL_CCW);
+
+  glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+
+  ApplyShadowMappingPass();
+}
+
 void FinalScene::CreatePipelineCreationJobs() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
@@ -467,7 +518,7 @@ void FinalScene::CreatePipelineCreationJobs() noexcept {
   }
 
   for (auto& prog_creation_job : pipeline_creation_jobs_) {
-    job_system_.AddJob(&prog_creation_job);
+    main_thread_jobs_.push(&prog_creation_job);
   }
 }
 
@@ -1193,7 +1244,7 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
   }
 
   for (auto& load_tex_to_gpu : load_tex_to_gpu_jobs_) {
-    job_system_.AddJob(&load_tex_to_gpu);
+    main_thread_jobs_.push(&load_tex_to_gpu);
   }
 }
 
@@ -1986,31 +2037,31 @@ void PipelineCreationJob::Work() noexcept {
   pipeline_->Begin(*vertex_shader_buffer_, *fragment_shader_buffer_);
 }
 
-SceneInitializationJob::SceneInitializationJob(
+FunctionExecutionJob::FunctionExecutionJob(
     const std::function<void()>& func, const JobType job_type) noexcept
     :
   Job(job_type),
   function_(func)
 {}
 
-SceneInitializationJob::SceneInitializationJob(
-    SceneInitializationJob&& other) noexcept :
+FunctionExecutionJob::FunctionExecutionJob(
+    FunctionExecutionJob&& other) noexcept :
   Job(std::move(other)),
   function_(std::move(other.function_))
 {}
 
-SceneInitializationJob& SceneInitializationJob::operator=(
-    SceneInitializationJob&& other) noexcept {
+FunctionExecutionJob& FunctionExecutionJob::operator=(
+    FunctionExecutionJob&& other) noexcept {
   Job::operator=(std::move(other));
   function_ = std::move(other.function_);
 
   return *this;
 }
 
-SceneInitializationJob::~SceneInitializationJob() noexcept {
+FunctionExecutionJob::~FunctionExecutionJob() noexcept {
 }
 
-void SceneInitializationJob::Work() noexcept {
+void FunctionExecutionJob::Work() noexcept {
   // Tracy already in the scope of the function.
   function_();
 }

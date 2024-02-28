@@ -36,6 +36,7 @@ struct PointLight {
 // ----------------------------------
 class PipelineCreationJob final : public Job {
  public:
+   PipelineCreationJob() noexcept = default;
    PipelineCreationJob(std::shared_ptr<FileBuffer> v_shader_buff,
                           std::shared_ptr<FileBuffer> f_shader_buff,
                           Pipeline* pipeline);
@@ -61,6 +62,7 @@ class PipelineCreationJob final : public Job {
 
 class LoadTextureToGpuJob final : public Job {
  public:
+  LoadTextureToGpuJob() noexcept = default;
   LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buffer,
                       GLuint* texture_id,
                       const TextureParameters& tex_param) noexcept;
@@ -82,18 +84,19 @@ class LoadTextureToGpuJob final : public Job {
   TextureParameters texture_param_;
 };
 
-class SceneInitializationJob final : public Job {
+class FunctionExecutionJob final : public Job {
 public:
-  SceneInitializationJob(const std::function<void()>& func, 
+  FunctionExecutionJob() noexcept = default;
+  FunctionExecutionJob(const std::function<void()>& func, 
                          JobType job_type) noexcept;
 
-  SceneInitializationJob(SceneInitializationJob&& other) noexcept;
-  SceneInitializationJob& operator=(SceneInitializationJob&& other) noexcept;
-  SceneInitializationJob(const SceneInitializationJob& other) noexcept = delete;
-  SceneInitializationJob& operator=(
-      const SceneInitializationJob& other) noexcept = delete;
+  FunctionExecutionJob(FunctionExecutionJob&& other) noexcept;
+  FunctionExecutionJob& operator=(FunctionExecutionJob&& other) noexcept;
+  FunctionExecutionJob(const FunctionExecutionJob& other) noexcept = delete;
+  FunctionExecutionJob& operator=(
+      const FunctionExecutionJob& other) noexcept = delete;
 
-  ~SceneInitializationJob() noexcept override;
+  ~FunctionExecutionJob() noexcept override;
 
   void Work() noexcept override;
 
@@ -103,6 +106,7 @@ private:
 
 class LoadFileFromDiskJob final : public Job {
  public:
+  LoadFileFromDiskJob() noexcept = default;
   LoadFileFromDiskJob(std::string file_path,
                       std::shared_ptr<FileBuffer> file_buffer,
                       JobType job_type) noexcept;
@@ -128,6 +132,7 @@ class LoadFileFromDiskJob final : public Job {
  */
 class ModelCreationJob final : public Job {
 public:
+  ModelCreationJob() noexcept = default;
   ModelCreationJob(Model* model, std::string_view file_path, bool gamma,
                  bool flip_y) noexcept;
   ModelCreationJob(ModelCreationJob&& other) noexcept;
@@ -147,6 +152,7 @@ private:
 
 class LoadModelToGpuJob final : public Job {
  public:
+  LoadModelToGpuJob() = default;
   LoadModelToGpuJob(Model* model) noexcept;
   LoadModelToGpuJob(LoadModelToGpuJob&& other) noexcept;
   LoadModelToGpuJob& operator=(LoadModelToGpuJob&& other) noexcept;
@@ -163,6 +169,7 @@ class LoadModelToGpuJob final : public Job {
 
 class FinalScene final : public Scene {
 public:
+  void InitOpenGLData();
   void Begin() override;
   void End() override;
   void Update(float dt) override;
@@ -183,14 +190,34 @@ private:
 
   // Main thread's jobs.
   // -------------------
-  std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs_;
+  FunctionExecutionJob create_framebuffers{};
+  FunctionExecutionJob create_meshes_job_{};
+  FunctionExecutionJob load_meshes_to_gpu_job_{};
+  LoadTextureToGpuJob load_hdr_map_to_gpu_{};
+  FunctionExecutionJob init_ibl_maps_job_{};
+  LoadModelToGpuJob load_leo_to_gpu_{};
+  LoadModelToGpuJob load_sword_to_gpu_{};
+  LoadModelToGpuJob load_platform_to_gpu_{};
+  LoadModelToGpuJob load_chest_to_gpu_{};
+  FunctionExecutionJob init_opengl_data_{};
+
+  std::queue<Job*> main_thread_jobs_{};
+  std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs_{};
   std::vector<PipelineCreationJob> pipeline_creation_jobs_{};
 
   // Other thread's jobs.
   // --------------------
-  std::vector<LoadFileFromDiskJob> img_file_loading_jobs_;
-  std::vector<ImageFileDecompressingJob> img_decompressing_jobs_;
-  std::vector<LoadFileFromDiskJob> shader_file_loading_jobs_;
+  LoadFileFromDiskJob load_hdr_map_{};
+  ImageFileDecompressingJob decomp_hdr_map_{};
+
+  ModelCreationJob leo_creation_job_{};
+  ModelCreationJob sword_creation_job_{};
+  ModelCreationJob platform_creation_job_{};
+  ModelCreationJob chest_creation_job_{};
+
+  std::vector<LoadFileFromDiskJob> img_file_loading_jobs_{};
+  std::vector<ImageFileDecompressingJob> img_decompressing_jobs_{};
+  std::vector<LoadFileFromDiskJob> shader_file_loading_jobs_{};
 
   // IBL textures creation pipelines.
   // --------------------------------
@@ -371,6 +398,9 @@ private:
   // ImGui variables.
   // ----------------
   bool is_help_window_open_ = true;
+
+  bool are_all_data_loaded_ = false;
+  bool is_initialized_ = false;
 
   // Begin methods.
   // --------------

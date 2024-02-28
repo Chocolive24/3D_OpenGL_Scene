@@ -55,6 +55,7 @@ void LoadTextureToGpu(ImageBuffer* image_buffer, GLuint* id, const TextureParame
 
 class ImageFileDecompressingJob final : public Job {
  public:
+  ImageFileDecompressingJob() noexcept = default;
   ImageFileDecompressingJob(std::shared_ptr<FileBuffer> file_buffer, 
                             std::shared_ptr<ImageBuffer> img_buffer, 
                             bool flip_y = false, bool hdr = false) noexcept;

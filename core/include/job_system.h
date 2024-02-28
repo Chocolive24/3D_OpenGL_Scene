@@ -24,19 +24,17 @@ enum class JobType : std::int16_t {
 
 class Job {
  public:
+  Job() noexcept = default;
   Job(const JobType job_type) : type_(job_type){}
-
   Job(Job&& other) noexcept = default;
   Job& operator=(Job&& other) noexcept = default;
   Job(const Job& other) noexcept = delete;
   Job& operator=(const Job& other) noexcept = delete;
-
   virtual ~Job() noexcept = default;
 
   void Execute() noexcept;
-
   void WaitUntilJobIsDone() const noexcept;
-
+  [[nodiscrad]] bool AreDependencyDone() const noexcept;
   void AddDependency(const Job* dependency) noexcept;
 
   [[nodiscard]] bool IsDone() const noexcept { return status_ == JobStatus::kDone; }
