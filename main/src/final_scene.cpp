@@ -1003,67 +1003,6 @@ void FinalScene::LoadMeshesToGpu() noexcept {
   screen_quad_.LoadToGpu();
 }
 
-void FinalScene::CreateModelInitializationJobs() {
-  //ModelCreationJob leo_creation_job(
-  //    &leo_magnus_, "data/models/leo_magnus/leo_magnus.obj", true, false);
-  //ModelCreationJob sword_creation_job(
-  //    &sword_, "data/models/leo_magnus/sword.obj", true, false);
-  //ModelCreationJob platform_creation_job(
-  //    &sandstone_platform_,
-  //    "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
-  //ModelCreationJob chest_creation_job(
-  //    &treasure_chest_, "data/models/treasure_chest/treasure_chest_2k.obj",
-  //    true, true);
-
-  //LoadModelToGpuJob load_leo_to_gpu(&leo_magnus_);
-  //load_leo_to_gpu.AddDependency(&leo_creation_job);
-  //LoadModelToGpuJob load_sword_to_gpu(&sword_);
-  //load_sword_to_gpu.AddDependency(&sword_creation_job);
-  //LoadModelToGpuJob load_platform_to_gpu(&sandstone_platform_);
-  //load_platform_to_gpu.AddDependency(&platform_creation_job);
-  //LoadModelToGpuJob load_chest_to_gpu(&treasure_chest_);
-  //load_chest_to_gpu.AddDependency(&chest_creation_job);
-
-  //job_system_.AddJob(&leo_creation_job);
-  //job_system_.AddJob(&sword_creation_job);
-  //job_system_.AddJob(&platform_creation_job);
-  //job_system_.AddJob(&chest_creation_job);
-
-  //job_system_.AddJob(&load_leo_to_gpu);
-  //job_system_.AddJob(&load_sword_to_gpu);
-  //job_system_.AddJob(&load_platform_to_gpu);
-  //job_system_.AddJob(&load_chest_to_gpu);
-}
-
-//void FinalScene::CreateModels() noexcept {
-//#ifdef TRACY_ENABLE
-//  ZoneScoped;
-//#endif  // TRACY_ENABLE
-//  leo_magnus_.Load("data/models/leo_magnus/leo_magnus.obj", true, false);
-//  leo_magnus_.GenerateModelSphereBoundingVolume();
-//
-//  sword_.Load("data/models/leo_magnus/sword.obj", true, false);
-//  sword_.GenerateModelSphereBoundingVolume();
-//
-//  sandstone_platform_.Load(
-//      "data/models/sandstone_platform/sandstone-platform1.obj", true, false);
-//  sandstone_platform_.GenerateModelSphereBoundingVolume();
-//
-//  treasure_chest_.Load("data/models/treasure_chest/treasure_chest_2k.obj", true,
-//                       true);
-//  treasure_chest_.GenerateModelSphereBoundingVolume();
-//}
-//
-//void FinalScene::LoadModelsToGpu() noexcept {
-//#ifdef TRACY_ENABLE
-//  ZoneScoped;
-//#endif  // TRACY_ENABLE
-//  leo_magnus_.LoadToGpu();
-//  sword_.LoadToGpu();
-//  sandstone_platform_.LoadToGpu();
-//  treasure_chest_.LoadToGpu();
-//}
-
 void FinalScene::CreateMaterialsCreationJobs() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
@@ -1184,11 +1123,6 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
       GL_REPEAT, GL_LINEAR, false, false),
     TextureParameters("data/models/treasure_chest/treasure_chest_arm_2k.jpg",
       GL_REPEAT, GL_LINEAR, false, false),
-
-    // HDR equirectangle map.
-    // ----------------------
-    //TextureParameters("data/textures/hdr/cape_hill_4k.hdr", GL_CLAMP_TO_EDGE,
-    //                  GL_LINEAR, false, true, true),
   };
 
   std::array<GLuint*, texture_count> texture_ids { 
@@ -1219,8 +1153,6 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
   for (int i = 0; i < treasure_chest_textures_.size(); i++) {
     texture_ids[i + 34] = &treasure_chest_textures_[i];
   }
-
-  //texture_ids[37] = &equirectangular_map_;
 
   img_file_loading_jobs_.reserve(texture_count);
   img_decompressing_jobs_.reserve(texture_count);

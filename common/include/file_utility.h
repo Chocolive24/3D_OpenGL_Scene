@@ -3,7 +3,6 @@
 #include <string_view>
 
 struct FileBuffer {
- public:
   FileBuffer() noexcept = default;
   FileBuffer(FileBuffer&& other) noexcept;
   FileBuffer& operator=(FileBuffer&& other) noexcept;

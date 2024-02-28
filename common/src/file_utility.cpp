@@ -21,11 +21,8 @@ FileBuffer& FileBuffer::operator=(FileBuffer&& other) noexcept {
 }
 
 FileBuffer::~FileBuffer() {
-  if (data != nullptr) {
-    delete[] data;
-    data = nullptr;
-    size = 0;
-  }
+  delete[] data;
+  size = 0;
 }
 
 namespace file_utility {

@@ -6,30 +6,6 @@
 #include <Tracy.hpp>
 #endif  // TRACY_ENABLE
 
-Job::Job(Job&& other) noexcept {
-  dependencies_ = std::move(other.dependencies_);
-  promise_ = std::move(other.promise_);
-  future_ = std::move(other.future_);
-  status_ = std::move(other.status_);
-  type_ = std::move(other.type_);
-
-  other.status_ = JobStatus::kNone;
-  other.type_ = JobType::kNone;
-}
-
-Job& Job::operator=(Job&& other) noexcept {
-  dependencies_ = std::move(other.dependencies_);
-  promise_ = std::move(other.promise_);
-  future_ = std::move(other.future_);
-  status_ = std::move(other.status_);
-  type_ = std::move(other.type_);
-
-  other.status_ = JobStatus::kNone;
-  other.type_ = JobType::kNone;
-
-  return *this;
-}
-
 void Job::Execute() noexcept {
   // Synchronization with all dependencies.
   // -------------------------------------
@@ -51,38 +27,39 @@ void Job::Execute() noexcept {
 }
 
 void Job::WaitUntilJobIsDone() const noexcept { 
-  if (!IsDone()) {
-    future_.get(); 
-  }
+  future_.get(); 
 }
 
 void Job::AddDependency(const Job* dependency) noexcept {
   dependencies_.push_back(dependency);
 }
 
-void Worker::RunWorkLoop(std::vector<Job*>& jobs) noexcept { 
-  thread_ = std::thread([this](std::vector<Job*>& jobs_queue) {  
-    while (is_running_) {
-      Job* job = nullptr;
-    
-      if (!jobs_queue.empty()) {
-        // Takes the job at the front of the vector and erases it.
-        job = jobs_queue.front();
-        jobs_queue.erase(jobs_queue.begin());  
-      } 
-      else {
-        is_running_ = false;
-        break;
-      }
-    
-      if (job) {
-        job->Execute();
-      }
-    } 
-  }, jobs);
+Worker::Worker(std::queue<Job*>* jobs) noexcept : jobs_(jobs){}
+
+void Worker::Start() noexcept { 
+  thread_ = std::thread(&Worker::LoopOverJobs, this);
 }
 
 void Worker::Join() noexcept { thread_.join(); }
+
+void Worker::LoopOverJobs() noexcept {
+  while (is_running_) {
+    Job* job = nullptr;
+
+    if (!jobs_->empty()) {
+      job = jobs_->front();
+      jobs_->pop();
+    }
+    else {
+      is_running_ = false;
+      break;
+    }
+
+    if (job) {
+      job->Execute();
+    }
+  }
+}
 
 void JobSystem::JoinWorkers() noexcept {
 #ifdef TRACY_ENABLE
@@ -101,23 +78,26 @@ void JobSystem::LaunchWorkers(const int worker_count) noexcept {
   workers_.reserve(worker_count);
 
   for (int i = 0; i < worker_count; i++) {
-    workers_.emplace_back();
-
     switch (static_cast<JobType>(i)) { 
       case JobType::kImageFileLoading:
-        workers_[i].RunWorkLoop(img_file_loading_jobs_);
+        workers_.emplace_back(&img_file_loading_jobs_);
+        workers_[i].Start();
         break;
       case JobType::kImageFileDecompressing:
-        workers_[i].RunWorkLoop(img_decompressing_jobs_);
+        workers_.emplace_back(&img_decompressing_jobs_);
+        workers_[i].Start();
         break;
       case JobType::kShaderFileLoading:
-        workers_[i].RunWorkLoop(shader_file_loading_jobs_);
+        workers_.emplace_back(&shader_file_loading_jobs_);
+        workers_[i].Start();
         break;
       case JobType::kMeshCreating:
-        workers_[i].RunWorkLoop(mesh_creating_jobs_);
+        workers_.emplace_back(&mesh_creating_jobs_);
+        workers_[i].Start();
         break;
     case JobType::kModelLoading:
-        workers_[i].RunWorkLoop(model_loading_jobs_);
+        workers_.emplace_back(&model_loading_jobs_);
+        workers_[i].Start();
         break;
       case JobType::kNone:
       case JobType::kMainThread:
@@ -154,19 +134,19 @@ void JobSystem::AddJob(Job* job) noexcept {
 #endif  // TRACY_ENABLE
   switch (job->type()) {
     case JobType::kImageFileLoading:
-      img_file_loading_jobs_.push_back(job);
+      img_file_loading_jobs_.push(job);
       break;
     case JobType::kImageFileDecompressing:
-      img_decompressing_jobs_.push_back(job);
+      img_decompressing_jobs_.push(job);
       break;
     case JobType::kShaderFileLoading:
-      shader_file_loading_jobs_.push_back(job);
+      shader_file_loading_jobs_.push(job);
       break;
     case JobType::kMeshCreating:
-      mesh_creating_jobs_.push_back(job);
+      mesh_creating_jobs_.push(job);
       break;
     case JobType::kModelLoading:
-      model_loading_jobs_.push_back(job);
+      model_loading_jobs_.push(job);
       break;
     case JobType::kMainThread:
       main_thread_jobs_.push_back(job);
