@@ -62,17 +62,15 @@ void FinalScene::Begin() {
 
   job_system_.AddJob(&load_hdr_map_);
   job_system_.AddJob(&decomp_hdr_map_);
-  main_thread_jobs_.push(&load_hdr_map_to_gpu_);
 
-  init_ibl_maps_job_ = FunctionExecutionJob{[this]() { CreateIblMaps(); },
-                                           JobType::kMainThread};
-  init_ibl_maps_job_.AddDependency(&load_hdr_map_to_gpu_);
-  init_ibl_maps_job_.AddDependency(&create_meshes_job_);
-  main_thread_jobs_.push(&init_ibl_maps_job_);
+  set_pipe_tex_units_job_ = FunctionExecutionJob(
+      [this]() { SetPipelineSamplerTexUnits(); }, JobType::kMainThread);
+  main_thread_jobs_.push(&set_pipe_tex_units_job_);
+  create_ssao_data_job_ = FunctionExecutionJob([this]() { CreateSsaoData(); },
+                                               JobType::kMainThread);
+  main_thread_jobs_.push(&create_ssao_data_job_);
 
-  CreateMaterialsCreationJobs();
-
-  // Models initialization jobs.
+    // Models initialization jobs.
   // ---------------------------
   leo_creation_job_ = ModelCreationJob(
       &leo_magnus_, "data/models/leo_magnus/leo_magnus.obj", true, false);
@@ -103,6 +101,25 @@ void FinalScene::Begin() {
   main_thread_jobs_.push(&load_sword_to_gpu_);
   main_thread_jobs_.push(&load_platform_to_gpu_);
   main_thread_jobs_.push(&load_chest_to_gpu_);
+
+  main_thread_jobs_.push(&load_hdr_map_to_gpu_);
+
+  init_ibl_maps_job_ = FunctionExecutionJob{[this]() { CreateIblMaps(); },
+                                           JobType::kMainThread};
+  init_ibl_maps_job_.AddDependency(&load_hdr_map_to_gpu_);
+  init_ibl_maps_job_.AddDependency(&create_meshes_job_);
+  main_thread_jobs_.push(&init_ibl_maps_job_);
+
+  apply_shadow_mapping_job_ = FunctionExecutionJob(
+      [this]() { ApplyShadowMappingPass(); }, JobType::kMainThread);
+  main_thread_jobs_.push(&apply_shadow_mapping_job_);
+
+  init_opengl_settings_job_ = FunctionExecutionJob(
+      [this]() { InitOpenGlSettings(); }, JobType::kMainThread);
+
+  main_thread_jobs_.push(&init_opengl_settings_job_);
+
+  CreateMaterialsCreationJobs();
 
   job_system_.LaunchWorkers(5);
 }
@@ -141,17 +158,10 @@ void FinalScene::Update(float dt) {
       }
     }
     else {
+      job_system_.JoinWorkers();
       are_all_data_loaded_ = true;
       break;
     }
-  }
-
-  if (!is_initialized_)
-  {
-    job_system_.JoinWorkers();
-    InitOpenGLData();
-    is_initialized_ = true;
-    return;
   }
 
   const auto window_aspect = Engine::window_aspect();
@@ -221,10 +231,11 @@ void FinalScene::OnEvent(const SDL_Event& event) {
 }
 
 void FinalScene::DrawImGui() { 
+  static const auto window_size = Engine::window_size();
 
-  if (!is_initialized_)
+  if (!are_all_data_loaded_)
   {
-    static const auto window_size = Engine::window_size();
+    
     ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Once);
     ImGui::SetNextWindowPos(ImVec2(window_size.x * 0.4f, window_size.y * 0.35f),
                             ImGuiCond_Once);
@@ -243,6 +254,8 @@ void FinalScene::DrawImGui() {
   }
 
   ImGui::SetNextWindowSize(ImVec2(300, 200), ImGuiCond_Once);
+  ImGui::SetNextWindowPos(ImVec2(window_size.x * 0.015f, window_size.y * 0.025f),
+                          ImGuiCond_Once);
 
   if (ImGui::Begin("Scene Controls and Settings.", &is_help_window_open_)) {
 
@@ -372,15 +385,11 @@ void FinalScene::DrawImGui() {
   ImGui::End();
 }
 
-void FinalScene::InitOpenGLData() {
-  SetPipelineSamplerTexUnits();
-
+void FinalScene::InitOpenGlSettings() {
   // Important to call glViewport with the screen dimension after the creation
   // of the different IBL pre-computed textures.
   const auto screen_size = Engine::window_size();
   glViewport(0, 0, screen_size.x, screen_size.y);
-
-  CreateSsaoData();
 
   camera_.Begin(glm::vec3(0.0f, -3.75f, 15.0f), 45.f, 0.1f, 100.f, -90.f,
                 -10.5f);
@@ -393,8 +402,6 @@ void FinalScene::InitOpenGLData() {
   glFrontFace(GL_CCW);
 
   glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
-
-  ApplyShadowMappingPass();
 }
 
 void FinalScene::CreatePipelineCreationJobs() noexcept {

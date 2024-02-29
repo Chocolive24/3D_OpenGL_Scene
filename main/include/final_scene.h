@@ -159,7 +159,7 @@ class LoadModelToGpuJob final : public Job {
 
 class FinalScene final : public Scene {
 public:
-  void InitOpenGLData();
+  void InitOpenGlSettings();
   void Begin() override;
   void End() override;
   void Update(float dt) override;
@@ -189,7 +189,10 @@ private:
   LoadModelToGpuJob load_sword_to_gpu_{};
   LoadModelToGpuJob load_platform_to_gpu_{};
   LoadModelToGpuJob load_chest_to_gpu_{};
-  FunctionExecutionJob init_opengl_data_{};
+  FunctionExecutionJob set_pipe_tex_units_job_{};
+  FunctionExecutionJob create_ssao_data_job_{};
+  FunctionExecutionJob apply_shadow_mapping_job_{};
+  FunctionExecutionJob init_opengl_settings_job_{};
 
   std::queue<Job*> main_thread_jobs_{};
   std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs_{};
@@ -388,9 +391,7 @@ private:
   // ImGui variables.
   // ----------------
   bool is_help_window_open_ = true;
-
   bool are_all_data_loaded_ = false;
-  bool is_initialized_ = false;
 
   // Begin methods.
   // --------------
