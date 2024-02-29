@@ -10,7 +10,6 @@
 #include "job_system.h"
 
 #include <array>
-#include <memory>
 
 enum class GeometryPipelineType {
   kGeometry, 
@@ -37,49 +36,44 @@ struct PointLight {
 class PipelineCreationJob final : public Job {
  public:
    PipelineCreationJob() noexcept = default;
-   PipelineCreationJob(std::shared_ptr<FileBuffer> v_shader_buff,
-                          std::shared_ptr<FileBuffer> f_shader_buff,
-                          Pipeline* pipeline);
-
-   PipelineCreationJob(PipelineCreationJob&& other) noexcept;
-   PipelineCreationJob& operator=(PipelineCreationJob&& other) noexcept;
-
+   PipelineCreationJob(FileBuffer* v_shader_buff,
+                       FileBuffer* f_shader_buff,
+                       Pipeline* pipeline);
+   PipelineCreationJob(PipelineCreationJob&& other) noexcept = default;
+   PipelineCreationJob& operator=(PipelineCreationJob&& other) noexcept = default;
    PipelineCreationJob(const PipelineCreationJob& other) noexcept =
        delete;
    PipelineCreationJob& operator=(
        const PipelineCreationJob& other) noexcept = delete;
-       
-   ~PipelineCreationJob() noexcept override;
+   ~PipelineCreationJob() noexcept override = default;
 
    void Work() noexcept override;
 
  private:
    // Shared with the load shader file from disk job.
-   std::shared_ptr<FileBuffer> vertex_shader_buffer_ = nullptr;
-   std::shared_ptr<FileBuffer> fragment_shader_buffer_ = nullptr;
-   Pipeline* pipeline_;
+   FileBuffer* vertex_shader_buffer_ = nullptr;
+   FileBuffer* fragment_shader_buffer_ = nullptr;
+   Pipeline* pipeline_ = nullptr;
 };
 
 class LoadTextureToGpuJob final : public Job {
  public:
   LoadTextureToGpuJob() noexcept = default;
-  LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buffer,
+  LoadTextureToGpuJob(ImageBuffer* image_buffer,
                       GLuint* texture_id,
                       const TextureParameters& tex_param) noexcept;
-
-  LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept;
-  LoadTextureToGpuJob& operator=(LoadTextureToGpuJob&& other) noexcept;
+  LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept = default;
+  LoadTextureToGpuJob& operator=(LoadTextureToGpuJob&& other) noexcept = default;
   LoadTextureToGpuJob(const LoadTextureToGpuJob& other) noexcept = delete;
   LoadTextureToGpuJob& operator=(const LoadTextureToGpuJob& other) noexcept =
       delete;
-
-  ~LoadTextureToGpuJob() noexcept override;
+  ~LoadTextureToGpuJob() noexcept override = default;
 
   void Work() noexcept override;
 
  private:
   // Shared with the image decompressing job.
-  std::shared_ptr<ImageBuffer> image_buffer_ = nullptr;
+  ImageBuffer* image_buffer_ = nullptr;
   GLuint* texture_id_ = nullptr;
   TextureParameters texture_param_;
 };
@@ -89,14 +83,12 @@ public:
   FunctionExecutionJob() noexcept = default;
   FunctionExecutionJob(const std::function<void()>& func, 
                          JobType job_type) noexcept;
-
-  FunctionExecutionJob(FunctionExecutionJob&& other) noexcept;
-  FunctionExecutionJob& operator=(FunctionExecutionJob&& other) noexcept;
+  FunctionExecutionJob(FunctionExecutionJob&& other) noexcept = default;
+  FunctionExecutionJob& operator=(FunctionExecutionJob&& other) noexcept = default;
   FunctionExecutionJob(const FunctionExecutionJob& other) noexcept = delete;
   FunctionExecutionJob& operator=(
       const FunctionExecutionJob& other) noexcept = delete;
-
-  ~FunctionExecutionJob() noexcept override;
+  ~FunctionExecutionJob() noexcept override = default;
 
   void Work() noexcept override;
 
@@ -108,21 +100,19 @@ class LoadFileFromDiskJob final : public Job {
  public:
   LoadFileFromDiskJob() noexcept = default;
   LoadFileFromDiskJob(std::string file_path,
-                      std::shared_ptr<FileBuffer> file_buffer,
+                      FileBuffer* file_buffer,
                       JobType job_type) noexcept;
-
-  LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept;
-  LoadFileFromDiskJob& operator=(LoadFileFromDiskJob&& other) noexcept;
+  LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept = default;
+  LoadFileFromDiskJob& operator=(LoadFileFromDiskJob&& other) noexcept = default;
   LoadFileFromDiskJob(const LoadFileFromDiskJob& other) noexcept = delete;
   LoadFileFromDiskJob& operator=(const LoadFileFromDiskJob& other) noexcept =
       delete;
-
-  ~LoadFileFromDiskJob() noexcept override;
+  ~LoadFileFromDiskJob() noexcept override = default;
 
   void Work() noexcept override;
 
  private:
-  std::shared_ptr<FileBuffer> file_buffer_ = nullptr;
+  FileBuffer* file_buffer_ = nullptr;
   std::string file_path_{};
 };
 
@@ -135,11 +125,11 @@ public:
   ModelCreationJob() noexcept = default;
   ModelCreationJob(Model* model, std::string_view file_path, bool gamma,
                  bool flip_y) noexcept;
-  ModelCreationJob(ModelCreationJob&& other) noexcept;
-  ModelCreationJob& operator=(ModelCreationJob&& other) noexcept;
+  ModelCreationJob(ModelCreationJob&& other) noexcept = default;
+  ModelCreationJob& operator=(ModelCreationJob&& other) noexcept = default;
   ModelCreationJob(const ModelCreationJob& other) noexcept = delete;
   ModelCreationJob& operator=(const ModelCreationJob& other) noexcept = delete;
-  ~ModelCreationJob() noexcept override;
+  ~ModelCreationJob() noexcept override = default;
 
   void Work() noexcept override;
 
@@ -154,12 +144,12 @@ class LoadModelToGpuJob final : public Job {
  public:
   LoadModelToGpuJob() = default;
   LoadModelToGpuJob(Model* model) noexcept;
-  LoadModelToGpuJob(LoadModelToGpuJob&& other) noexcept;
-  LoadModelToGpuJob& operator=(LoadModelToGpuJob&& other) noexcept;
+  LoadModelToGpuJob(LoadModelToGpuJob&& other) noexcept = default;
+  LoadModelToGpuJob& operator=(LoadModelToGpuJob&& other) noexcept = default;
   LoadModelToGpuJob(const LoadModelToGpuJob& other) noexcept = delete;
   LoadModelToGpuJob& operator=(const LoadModelToGpuJob& other) noexcept =
       delete;
-  ~LoadModelToGpuJob() noexcept override;
+  ~LoadModelToGpuJob() noexcept override = default;
 
   void Work() noexcept override;
 
@@ -448,4 +438,60 @@ private:
   void DestroyIblPreComputedCubeMaps() noexcept;
 
   void DestroyFrameBuffers() noexcept;
+
+  FileBuffer hdr_file_buffer_{};
+  ImageBuffer hdr_image_buffer_{};
+
+  static constexpr int shader_count_ = 40;
+  static constexpr int pipeline_count_ = shader_count_ / 2;
+  static constexpr std::array<std::string_view, shader_count_> shader_paths_{
+      "data/shaders/transform/local_transform.vert",
+      "data/shaders/hdr/equirectangular_to_cubemap.frag",
+      "data/shaders/transform/local_transform.vert",
+      "data/shaders/pbr/irradiance_convultion.frag",
+      "data/shaders/transform/local_transform.vert",
+      "data/shaders/pbr/prefilter.frag",
+      "data/shaders/pbr/brdf.vert",
+      "data/shaders/pbr/brdf.frag",
+      "data/shaders/pbr/pbr_g_buffer.vert",
+      "data/shaders/pbr/pbr_g_buffer.frag",
+      "data/shaders/pbr/pbr_g_buffer.vert",
+      "data/shaders/pbr/arm_pbr_g_buffer.frag",
+      "data/shaders/pbr/pbr_g_buffer.vert",
+      "data/shaders/pbr/emissive_arm_pbr_g_buffer.frag",
+      "data/shaders/pbr/instanced_pbr_g_buffer.vert",
+      "data/shaders/pbr/pbr_g_buffer.frag",
+      "data/shaders/transform/screen_transform.vert",
+      "data/shaders/ssao/ssao.frag",
+      "data/shaders/transform/screen_transform.vert",
+      "data/shaders/ssao/ssao_blur.frag",
+      "data/shaders/shadow/simple_depth.vert",
+      "data/shaders/shadow/simple_depth.frag",
+      "data/shaders/shadow/simple_depth.vert",
+      "data/shaders/shadow/point_light_simple_depth.frag",
+      "data/shaders/shadow/instanced_simple_depth.vert",
+      "data/shaders/shadow/simple_depth.frag",
+      "data/shaders/shadow/instanced_simple_depth.vert",
+      "data/shaders/shadow/point_light_simple_depth.frag",
+      "data/shaders/transform/screen_transform.vert",
+      "data/shaders/pbr/deferred_pbr.frag",
+      "data/shaders/transform/transform.vert",
+      "data/shaders/visual_debug/light_debug.frag",
+      "data/shaders/hdr/hdr_cubemap.vert",
+      "data/shaders/hdr/hdr_cubemap.frag",
+      "data/shaders/transform/screen_transform.vert",
+      "data/shaders/bloom/down_sample.frag",
+      "data/shaders/transform/screen_transform.vert",
+      "data/shaders/bloom/up_sample.frag",
+      "data/shaders/transform/screen_transform.vert",
+      "data/shaders/hdr/hdr.frag",
+  };
+  std::array<Pipeline*, pipeline_count_> pipelines_{};
+  std::array<FileBuffer, shader_count_> shader_file_buffers_{};
+
+  static constexpr std::int8_t texture_count_ = 37;
+  std::array<FileBuffer, texture_count_> image_file_buffers_{};
+  std::array<ImageBuffer, texture_count_> image_buffers{};
+  std::array<TextureParameters, texture_count_> texture_inputs_{};
+  std::array<GLuint*, texture_count_> texture_ids_{};
 };

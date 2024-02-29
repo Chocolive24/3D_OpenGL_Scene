@@ -34,7 +34,13 @@ class Job {
 
   void Execute() noexcept;
   void WaitUntilJobIsDone() const noexcept;
-  [[nodiscrad]] bool AreDependencyDone() const noexcept;
+  /**
+   * \brief IsReadyToStart is a method that checks if all the dependency
+   * of the job are done, which means that the job can be executed.
+   * \return If all the dependency
+   * of the job are done, which means that the job can be executed
+   */
+  [[nodiscrad]] bool IsReadyToStart() const noexcept;
   void AddDependency(const Job* dependency) noexcept;
 
   [[nodiscard]] bool IsDone() const noexcept { return status_ == JobStatus::kDone; }
@@ -53,12 +59,15 @@ class Job {
 };
 
 /**
- * \brief JobQueue is a thread safe queue container.
- * TODO finish to code it and use it instead of std::queue.
+ * \brief JobQueue is a thread safe queue which stores jobs.
  */
+// TODO finish to code it and use it instead of std::queue.
 class JobQueue {
  public:
+  void Push() noexcept;
   void Pop() noexcept;
+  [[nodiscard]] bool IsEmpty() const noexcept;
+
  private:
   std::queue<Job*> jobs_;
   std::shared_mutex mutex_;
@@ -72,13 +81,14 @@ class Worker {
 
  private:
   std::thread thread_{};
-  std::queue<Job*>* jobs_; // TODO JobQueue* jobs_queue_
+  std::queue<Job*>* jobs_; // TODO JobQueue* jobs_queue_.
   bool is_running_ = true;
 
   void LoopOverJobs() noexcept;
 };
 
-
+// TODO: Run all possible thread on the hardware.
+// TODO: Each Worker should access the same JobQueue for more parallelism.
 class JobSystem {
  public:
   JobSystem() noexcept = default;

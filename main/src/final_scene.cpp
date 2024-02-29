@@ -48,17 +48,15 @@ void FinalScene::Begin() {
                                    GL_CLAMP_TO_EDGE, GL_LINEAR, false, true,
                                    true);
 
-  auto file_buffer = std::make_shared<FileBuffer>();
-  auto image_buffer = std::make_shared<ImageBuffer>();
-
-  load_hdr_map_ = LoadFileFromDiskJob{hdr_map_params.image_file_path, file_buffer,
+  load_hdr_map_ =
+      LoadFileFromDiskJob{hdr_map_params.image_file_path, &hdr_file_buffer_,
                                    JobType::kImageFileLoading};
 
-  decomp_hdr_map_ = ImageFileDecompressingJob{
-      file_buffer, image_buffer, hdr_map_params.flipped_y, hdr_map_params.hdr};
+  decomp_hdr_map_ = ImageFileDecompressingJob{&hdr_file_buffer_, &hdr_image_buffer_,
+                                hdr_map_params.flipped_y, hdr_map_params.hdr};
   decomp_hdr_map_.AddDependency(&load_hdr_map_);
 
-  load_hdr_map_to_gpu_ = LoadTextureToGpuJob{image_buffer, &equirectangular_map_,
+  load_hdr_map_to_gpu_ = LoadTextureToGpuJob{&hdr_image_buffer_, &equirectangular_map_,
                                           hdr_map_params};
   load_hdr_map_to_gpu_.AddDependency(&decomp_hdr_map_);
 
@@ -107,9 +105,6 @@ void FinalScene::Begin() {
   main_thread_jobs_.push(&load_chest_to_gpu_);
 
   job_system_.LaunchWorkers(5);
-
-  //init_opengl_data_ = FunctionExecutionJob([this]() { InitOpenGLData(); },
-  //                                         JobType::kMainThread);
 }
 
 void FinalScene::End() {
@@ -136,7 +131,7 @@ void FinalScene::Update(float dt) {
 
     if (!main_thread_jobs_.empty()) {
       job = main_thread_jobs_.front();
-      if (job->AreDependencyDone()) {
+      if (job->IsReadyToStart()) {
         job->Execute();
         main_thread_jobs_.pop();
       }
@@ -407,53 +402,7 @@ void FinalScene::CreatePipelineCreationJobs() noexcept {
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
-  constexpr int shader_count = 40;
-  constexpr int pipeline_count = shader_count / 2;
-
-  std::array<std::string_view, shader_count> shader_paths{
-    "data/shaders/transform/local_transform.vert",
-    "data/shaders/hdr/equirectangular_to_cubemap.frag",
-    "data/shaders/transform/local_transform.vert",
-    "data/shaders/pbr/irradiance_convultion.frag",
-    "data/shaders/transform/local_transform.vert",
-    "data/shaders/pbr/prefilter.frag",
-    "data/shaders/pbr/brdf.vert",
-    "data/shaders/pbr/brdf.frag",
-    "data/shaders/pbr/pbr_g_buffer.vert",
-    "data/shaders/pbr/pbr_g_buffer.frag",
-    "data/shaders/pbr/pbr_g_buffer.vert",
-    "data/shaders/pbr/arm_pbr_g_buffer.frag",
-    "data/shaders/pbr/pbr_g_buffer.vert",
-    "data/shaders/pbr/emissive_arm_pbr_g_buffer.frag",
-    "data/shaders/pbr/instanced_pbr_g_buffer.vert",
-    "data/shaders/pbr/pbr_g_buffer.frag",
-    "data/shaders/transform/screen_transform.vert",
-    "data/shaders/ssao/ssao.frag",
-    "data/shaders/transform/screen_transform.vert",
-    "data/shaders/ssao/ssao_blur.frag",
-    "data/shaders/shadow/simple_depth.vert",
-    "data/shaders/shadow/simple_depth.frag",
-    "data/shaders/shadow/simple_depth.vert",
-    "data/shaders/shadow/point_light_simple_depth.frag",
-    "data/shaders/shadow/instanced_simple_depth.vert",
-    "data/shaders/shadow/simple_depth.frag",
-    "data/shaders/shadow/instanced_simple_depth.vert",
-    "data/shaders/shadow/point_light_simple_depth.frag",
-    "data/shaders/transform/screen_transform.vert",
-    "data/shaders/pbr/deferred_pbr.frag",
-    "data/shaders/transform/transform.vert",
-    "data/shaders/visual_debug/light_debug.frag",
-    "data/shaders/hdr/hdr_cubemap.vert",
-    "data/shaders/hdr/hdr_cubemap.frag",
-    "data/shaders/transform/screen_transform.vert",
-    "data/shaders/bloom/down_sample.frag",
-    "data/shaders/transform/screen_transform.vert",
-    "data/shaders/bloom/up_sample.frag",
-    "data/shaders/transform/screen_transform.vert",
-    "data/shaders/hdr/hdr.frag",
-  };
-
-  std::array<Pipeline*, pipeline_count> pipelines_ {
+  std::array<Pipeline*, pipeline_count_> pipelines {
     // IBL textures creation pipelines.
     // --------------------------------
     &equirect_to_cubemap_pipe_,
@@ -487,23 +436,21 @@ void FinalScene::CreatePipelineCreationJobs() noexcept {
     &bloom_hdr_pipeline_,
   };
 
-  std::array<std::shared_ptr<FileBuffer>, shader_count> file_buffers{};
+  pipelines_ = std::move(pipelines);
 
-  shader_file_loading_jobs_.reserve(shader_count);
-  pipeline_creation_jobs_.reserve(pipeline_count);
+  shader_file_loading_jobs_.reserve(shader_count_);
+  pipeline_creation_jobs_.reserve(pipeline_count_);
 
   int pipeline_iterator = 0;
-  for (int i = 0; i < shader_count; i++) {
-    file_buffers[i] = std::make_shared<FileBuffer>();
-
+  for (int i = 0; i < shader_count_; i++) {
     shader_file_loading_jobs_.emplace_back(LoadFileFromDiskJob(
-        shader_paths[i].data(), 
-        file_buffers[i], JobType::kShaderFileLoading)
+        shader_paths_[i].data(), 
+        &shader_file_buffers_[i], JobType::kShaderFileLoading)
     );
 
     if (i % 2 == 1) {
       pipeline_creation_jobs_.emplace_back(PipelineCreationJob(
-          file_buffers[i - 1], file_buffers[i], pipelines_[pipeline_iterator])
+          &shader_file_buffers_[i - 1], &shader_file_buffers_[i], pipelines_[pipeline_iterator])
       );
 
       pipeline_creation_jobs_[pipeline_iterator].AddDependency(&shader_file_loading_jobs_[i - 1]);
@@ -1059,12 +1006,7 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
-  constexpr std::int8_t texture_count = 37;
-
-  std::array<std::shared_ptr<FileBuffer>, texture_count> file_buffers{};
-  std::array<std::shared_ptr<ImageBuffer>, texture_count> image_buffers{};
-
-  std::array<TextureParameters, texture_count> texture_inputs{
+  std::array<TextureParameters, texture_count_> texture_inputs{
     // Gold Material.
     // --------------
     TextureParameters("data/textures/pbr/gold/gold-scuffed_basecolor-boosted.png", 
@@ -1176,7 +1118,7 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
       GL_REPEAT, GL_LINEAR, false, false),
   };
 
-  std::array<GLuint*, texture_count> texture_ids { 
+  std::array<GLuint*, texture_count_> texture_ids { 
     &gold_mat_.albedo_map,
     &gold_mat_.normal_map,
     &gold_mat_.metallic_map,
@@ -1205,31 +1147,31 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
     texture_ids[i + 34] = &treasure_chest_textures_[i];
   }
 
-  img_file_loading_jobs_.reserve(texture_count);
-  img_decompressing_jobs_.reserve(texture_count);
-  load_tex_to_gpu_jobs_.reserve(texture_count);
+  texture_ids_ = std::move(texture_ids);
+
+  img_file_loading_jobs_.reserve(texture_count_);
+  img_decompressing_jobs_.reserve(texture_count_);
+  load_tex_to_gpu_jobs_.reserve(texture_count_);
 
   // For loop that creates all the jobs used to create textures for materials.
-  for (std::int8_t i = 0; i < texture_count; i++) {
+  for (std::int8_t i = 0; i < texture_count_; i++) {
     const auto& tex_param = texture_inputs[i];
 
     // Image files reading job.
     // ------------------------
-    file_buffers[i] = std::make_shared<FileBuffer>();
     img_file_loading_jobs_.emplace_back(LoadFileFromDiskJob(
-        tex_param.image_file_path, file_buffers[i], JobType::kImageFileLoading));
+        tex_param.image_file_path, &image_file_buffers_[i], JobType::kImageFileLoading));
 
     // Image files decompressing job.
     // ------------------------------
-    image_buffers[i] = std::make_shared<ImageBuffer>();
-    img_decompressing_jobs_.emplace_back(ImageFileDecompressingJob(file_buffers[i], image_buffers[i],
+    img_decompressing_jobs_.emplace_back(ImageFileDecompressingJob(&image_file_buffers_[i], &image_buffers[i],
                                         tex_param.flipped_y, tex_param.hdr));
 
     img_decompressing_jobs_[i].AddDependency(&img_file_loading_jobs_[i]);
 
     // Texture loading to GPU job.
     // ---------------------------
-    load_tex_to_gpu_jobs_.emplace_back(LoadTextureToGpuJob(image_buffers[i], 
+    load_tex_to_gpu_jobs_.emplace_back(LoadTextureToGpuJob(&image_buffers[i], 
         texture_ids[i], tex_param));
 
     load_tex_to_gpu_jobs_[i].AddDependency(&img_decompressing_jobs_[i]);
@@ -1921,7 +1863,7 @@ void FinalScene::DestroyMaterials() noexcept {
   }
 }
 
-LoadTextureToGpuJob::LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buffer,
+LoadTextureToGpuJob::LoadTextureToGpuJob(ImageBuffer* image_buffer,
                                          GLuint* texture_id,
                                          const TextureParameters& tex_param) noexcept
   : Job(JobType::kMainThread), 
@@ -1931,62 +1873,21 @@ LoadTextureToGpuJob::LoadTextureToGpuJob(std::shared_ptr<ImageBuffer> image_buff
 {
 }
 
-LoadTextureToGpuJob::LoadTextureToGpuJob(LoadTextureToGpuJob&& other) noexcept :
-    Job(std::move(other)) {
-  image_buffer_ = std::move(other.image_buffer_);
-  texture_id_ = std::move(other.texture_id_);
-  texture_param_ = other.texture_param_;
-}
-
-LoadTextureToGpuJob& LoadTextureToGpuJob::operator=(
-    LoadTextureToGpuJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  image_buffer_ = std::move(other.image_buffer_);
-  texture_id_ = std::move(other.texture_id_);
-  texture_param_ = other.texture_param_;
-
-  return *this;
-}
-
-LoadTextureToGpuJob::~LoadTextureToGpuJob() noexcept {
-  image_buffer_ = nullptr;
-  texture_id_ = nullptr;
-}
-
 void LoadTextureToGpuJob::Work() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
-  LoadTextureToGpu(image_buffer_.get(), texture_id_, texture_param_);
+  LoadTextureToGpu(image_buffer_, texture_id_, texture_param_);
 }
 
 LoadFileFromDiskJob::LoadFileFromDiskJob(std::string file_path,
-                                         std::shared_ptr<FileBuffer> file_buffer,
+                                         FileBuffer* file_buffer,
                                          JobType job_type) noexcept
     : Job(job_type),
       file_path_(std::move(file_path)),
-      file_buffer_(file_buffer) // Don't move the shared pointer in creation. 
+      file_buffer_(file_buffer)
 {
 }
-
-LoadFileFromDiskJob::LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept
-    : Job(std::move(other)) {
-  file_buffer_ = std::move(other.file_buffer_);
-  file_path_ = std::move(other.file_path_);
-
-  other.file_buffer_ = nullptr;
-}
-LoadFileFromDiskJob& LoadFileFromDiskJob::operator=(LoadFileFromDiskJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  file_buffer_ = std::move(other.file_buffer_);
-  file_path_ = std::move(other.file_path_);
-
-  other.file_buffer_ = nullptr;
-
-  return *this;
-}
-
-LoadFileFromDiskJob::~LoadFileFromDiskJob() { file_buffer_ = nullptr; }
 
 void LoadFileFromDiskJob::Work() noexcept {
 #ifdef TRACY_ENABLE
@@ -1994,47 +1895,24 @@ void LoadFileFromDiskJob::Work() noexcept {
   ZoneText(file_path_.data(), file_path_.size());
 #endif  // TRACY_ENABLE
 
-  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_.get());
+  file_utility::LoadFileInBuffer(file_path_.data(), file_buffer_);
 }
 
 PipelineCreationJob::PipelineCreationJob(
-  std::shared_ptr<FileBuffer> v_shader_buff,
-  std::shared_ptr<FileBuffer> f_shader_buff, Pipeline* pipeline)
+  FileBuffer* v_shader_buff,
+  FileBuffer* f_shader_buff, Pipeline* pipeline)
   : Job(JobType::kMainThread),
     vertex_shader_buffer_(v_shader_buff),
     fragment_shader_buffer_(f_shader_buff),
     pipeline_(pipeline) {}
-
-PipelineCreationJob::PipelineCreationJob(
-    PipelineCreationJob&& other) noexcept : 
-  Job(std::move(other)),
-  vertex_shader_buffer_(std::move(other.vertex_shader_buffer_)),
-  fragment_shader_buffer_(std::move(other.fragment_shader_buffer_)),
-  pipeline_(std::move(other.pipeline_)) 
-{}
-
-PipelineCreationJob& PipelineCreationJob::operator=(
-    PipelineCreationJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  vertex_shader_buffer_ = std::move(other.vertex_shader_buffer_);
-  fragment_shader_buffer_ = std::move(other.fragment_shader_buffer_);
-  pipeline_ = std::move(other.pipeline_);
-
-  return *this;
-}
-
-PipelineCreationJob::~PipelineCreationJob() noexcept {
-  vertex_shader_buffer_ = nullptr;
-  fragment_shader_buffer_ = nullptr;
-  pipeline_ = nullptr;
-}
 
 void PipelineCreationJob::Work() noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
 
-  pipeline_->Begin(*vertex_shader_buffer_, *fragment_shader_buffer_);
+  pipeline_->Begin(*vertex_shader_buffer_, 
+      *fragment_shader_buffer_);
 }
 
 FunctionExecutionJob::FunctionExecutionJob(
@@ -2043,23 +1921,6 @@ FunctionExecutionJob::FunctionExecutionJob(
   Job(job_type),
   function_(func)
 {}
-
-FunctionExecutionJob::FunctionExecutionJob(
-    FunctionExecutionJob&& other) noexcept :
-  Job(std::move(other)),
-  function_(std::move(other.function_))
-{}
-
-FunctionExecutionJob& FunctionExecutionJob::operator=(
-    FunctionExecutionJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  function_ = std::move(other.function_);
-
-  return *this;
-}
-
-FunctionExecutionJob::~FunctionExecutionJob() noexcept {
-}
 
 void FunctionExecutionJob::Work() noexcept {
   // Tracy already in the scope of the function.
@@ -2072,30 +1933,9 @@ ModelCreationJob::ModelCreationJob(Model* model, const std::string_view file_pat
       model_(model),
       file_path_(file_path),
       gamma_(gamma),
-      flip_y_(flip_y) {}
-
-ModelCreationJob::ModelCreationJob(ModelCreationJob&& other) noexcept
-    : Job(std::move(other)),
-      model_(std::move(other.model_)),
-      file_path_(std::move(other.file_path_)),
-      gamma_(std::move(other.gamma_)),
-      flip_y_(std::move(other.flip_y_)) {
-  other.model_ = nullptr;
+      flip_y_(flip_y)
+{
 }
-
-ModelCreationJob& ModelCreationJob::operator=(ModelCreationJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  model_ = std::move(other.model_);
-  file_path_ = std::move(other.file_path_);
-  gamma_ = std::move(other.gamma_);
-  flip_y_ = std::move(other.flip_y_);
-
-  other.model_ = nullptr;
-
-  return *this;
-}
-
-ModelCreationJob::~ModelCreationJob() noexcept { model_ = nullptr; }
 
 void ModelCreationJob::Work() noexcept {
 #ifdef TRACY_ENABLE
@@ -2109,20 +1949,6 @@ void ModelCreationJob::Work() noexcept {
 LoadModelToGpuJob::LoadModelToGpuJob(Model* model) noexcept :
   Job(JobType::kMainThread),
   model_(model) {}
-
-LoadModelToGpuJob::LoadModelToGpuJob(LoadModelToGpuJob&& other) noexcept :
-  Job(std::move(other)),
-  model_(std::move(other.model_))
-{}
-
-LoadModelToGpuJob& LoadModelToGpuJob::operator=(LoadModelToGpuJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  model_ = std::move(other.model_);
-
-  return *this;
-}
-
-LoadModelToGpuJob::~LoadModelToGpuJob() noexcept { model_ = nullptr; }
 
 void LoadModelToGpuJob::Work() noexcept {
 #ifdef TRACY_ENABLE

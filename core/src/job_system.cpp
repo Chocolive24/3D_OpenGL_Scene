@@ -30,7 +30,7 @@ void Job::WaitUntilJobIsDone() const noexcept {
   future_.get(); 
 }
 
-bool Job::AreDependencyDone() const noexcept {
+bool Job::IsReadyToStart() const noexcept {
   for (const auto& dependency : dependencies_)
   {
     if (!dependency->IsDone())

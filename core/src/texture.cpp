@@ -26,44 +26,13 @@ TextureParameters::TextureParameters(std::string_view path, GLint wrap_param,
 };
 
 ImageFileDecompressingJob::ImageFileDecompressingJob(
-    std::shared_ptr<FileBuffer> file_buffer, std::shared_ptr<ImageBuffer> img_buffer, bool flip_y, bool hdr) noexcept
+  FileBuffer* file_buffer, ImageBuffer* img_buffer, bool flip_y, bool hdr) noexcept
     : Job(JobType::kImageFileDecompressing),
       file_buffer_(file_buffer),
       image_buffer_(img_buffer),
       flip_y_(flip_y),
       hdr_(hdr)
 {
-}
-
-ImageFileDecompressingJob::ImageFileDecompressingJob(
-    ImageFileDecompressingJob&& other) noexcept
-    : Job(std::move(other)) {
-  file_buffer_ = std::move(other.file_buffer_);
-  image_buffer_ = std::move(other.image_buffer_);
-  flip_y_ = std::move(other.flip_y_);
-  hdr_ = std::move(other.hdr_);
-
-  other.file_buffer_ = nullptr;
-  other.image_buffer_ = nullptr;
-}
-
-ImageFileDecompressingJob& ImageFileDecompressingJob::operator=(
-    ImageFileDecompressingJob&& other) noexcept {
-  Job::operator=(std::move(other));
-  file_buffer_ = std::move(other.file_buffer_);
-  image_buffer_ = std::move(other.image_buffer_);
-  flip_y_ = std::move(other.flip_y_);
-  hdr_ = std::move(other.hdr_);
-
-  other.file_buffer_ = nullptr;
-  other.image_buffer_ = nullptr;
-
-  return *this;
-}
-
-ImageFileDecompressingJob::~ImageFileDecompressingJob() {
-  file_buffer_ = nullptr;
-  image_buffer_ = nullptr;
 }
 
 void ImageFileDecompressingJob::Work() noexcept {
@@ -73,15 +42,13 @@ void ImageFileDecompressingJob::Work() noexcept {
 
   stbi_set_flip_vertically_on_load(flip_y_);
 
-  auto file_buffer_ptr = file_buffer_.get();
-
   if (hdr_) {
-    image_buffer_->data = stbi_loadf_from_memory(file_buffer_ptr->data, file_buffer_ptr->size,
+    image_buffer_->data = stbi_loadf_from_memory(file_buffer_->data, file_buffer_->size,
                                             &image_buffer_->width, &image_buffer_->height,
                                             &image_buffer_->channels, 0);
   } 
   else {
-    image_buffer_->data = stbi_load_from_memory(file_buffer_ptr->data, file_buffer_ptr->size,
+    image_buffer_->data = stbi_load_from_memory(file_buffer_->data, file_buffer_->size,
                                            &image_buffer_->width, &image_buffer_->height,
                                            &image_buffer_->channels, 0);
   }

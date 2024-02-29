@@ -56,25 +56,23 @@ void LoadTextureToGpu(ImageBuffer* image_buffer, GLuint* id, const TextureParame
 class ImageFileDecompressingJob final : public Job {
  public:
   ImageFileDecompressingJob() noexcept = default;
-  ImageFileDecompressingJob(std::shared_ptr<FileBuffer> file_buffer, 
-                            std::shared_ptr<ImageBuffer> img_buffer, 
+  ImageFileDecompressingJob(FileBuffer* file_buffer, 
+                            ImageBuffer* img_buffer, 
                             bool flip_y = false, bool hdr = false) noexcept;
-
-  ImageFileDecompressingJob(ImageFileDecompressingJob&& other) noexcept;
-  ImageFileDecompressingJob& operator=(ImageFileDecompressingJob&& other) noexcept;
+  ImageFileDecompressingJob(ImageFileDecompressingJob&& other) noexcept = default;
+  ImageFileDecompressingJob& operator=(ImageFileDecompressingJob&& other) noexcept = default;
   ImageFileDecompressingJob(const ImageFileDecompressingJob& other) noexcept = delete;
   ImageFileDecompressingJob& operator=(const ImageFileDecompressingJob& other) 
       noexcept = delete;
-
-  ~ImageFileDecompressingJob() noexcept;
+  ~ImageFileDecompressingJob() noexcept = default;
 
   void Work() noexcept override;
 
  private:
   // Shared with loading from disk job.
-  std::shared_ptr<FileBuffer> file_buffer_ = nullptr; 
+  FileBuffer* file_buffer_ = nullptr; 
   // Shared with loading texture to GPU job.
-  std::shared_ptr<ImageBuffer> image_buffer_ = nullptr;
+  ImageBuffer* image_buffer_ = nullptr;
   bool flip_y_ = false;
   bool hdr_ = false;
 };
