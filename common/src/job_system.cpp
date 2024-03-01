@@ -69,7 +69,7 @@ bool JobQueue::IsEmpty() const noexcept {
   return jobs_.empty();
 }
 
-Worker::Worker(JobQueue* jobs) noexcept : jobs_(jobs) {}
+Worker::Worker(JobRingBuffer* jobs) noexcept : jobs_(jobs) {}
 
 void Worker::Start() noexcept { 
   thread_ = std::thread(&Worker::LoopOverJobs, this);
@@ -77,11 +77,10 @@ void Worker::Start() noexcept {
 
 void Worker::Join() noexcept { thread_.join(); }
 
-void Worker::LoopOverJobs() noexcept {
-  while (!jobs_->IsEmpty()) {
-    if (Job* job = jobs_->Pop()) {
-      job->Execute();
-    }
+void Worker::LoopOverJobs() const noexcept {
+  Job* job = nullptr;
+  while (jobs_->Pop(job)) {
+    job->Execute();
   }
 }
 

@@ -56,7 +56,7 @@ void FinalScene::Begin() {
   create_ssao_data_job_ = FunctionExecutionJob([this]() { CreateSsaoData(); });
   main_thread_jobs_.push(&create_ssao_data_job_);
 
-    // Models initialization jobs.
+  // Models initialization jobs.
   // ---------------------------
   leo_creation_job_ = ModelCreationJob(
       &leo_magnus_, "data/models/leo_magnus/leo_magnus.obj", true, false);

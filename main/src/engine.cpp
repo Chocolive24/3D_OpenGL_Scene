@@ -1,5 +1,4 @@
 #include "engine.h"
-#include "error.h"
 
 #include <GL/glew.h>
 #include <glm/vec2.hpp>

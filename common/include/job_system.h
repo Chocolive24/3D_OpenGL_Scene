@@ -1,10 +1,13 @@
 #pragma once
 
+#include "ring_buffer.h"
+
 #include <vector>
 #include <thread>
 #include <future>
 #include <queue>
 #include <shared_mutex>
+
 
 enum class JobStatus : std::int16_t {
   kStarted,
@@ -58,17 +61,19 @@ class JobQueue {
   mutable std::shared_mutex shared_mutex_;
 };
 
+using JobRingBuffer = RingBuffer<Job*, 300>;
+
 class Worker {
  public:
-  explicit Worker(JobQueue* jobs) noexcept;
+  explicit Worker(JobRingBuffer* jobs) noexcept;
   void Start() noexcept;
   void Join() noexcept;
 
  private:
   std::thread thread_{};
-  JobQueue* jobs_;
+  JobRingBuffer* jobs_;
 
-  void LoopOverJobs() noexcept;
+  void LoopOverJobs() const noexcept;
 };
 
 class JobSystem {
@@ -80,6 +85,6 @@ class JobSystem {
   void JoinWorkers() noexcept;
 
  private:
-  JobQueue jobs_;
+  JobRingBuffer jobs_;
   std::vector<Worker> workers_{};
 };
