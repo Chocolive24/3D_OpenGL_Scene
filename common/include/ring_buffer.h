@@ -9,7 +9,17 @@ enum class PushMethodIfFull {
   kDiscardNewData,
 };
 
-template <typename T, std::size_t Size = 256>
+/**
+ * \brief RingBuffer is a thread-safe container that provides FIFO
+ *        (first-in, first-out) storage.
+ *        It allows elements to be pushed into the buffer and popped from it
+ *        in a thread-safe manner.
+ * \tparam T The type of elements stored in the buffer.
+ * \tparam Size The maximum capacity of the buffer.
+ */
+
+static_assert(std::atomic<std::size_t>::is_always_lock_free);
+template <typename T, std::size_t Size>
 class RingBuffer {
  public:
   void Push(const T& data, PushMethodIfFull push_method =
