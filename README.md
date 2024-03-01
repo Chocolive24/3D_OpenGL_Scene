@@ -9,7 +9,7 @@ A 3D scene made with the 300 es version of the OpenGL API as part of a noted pro
 ![Scene Rendering](documentation/images/gold_sphere_cover.png)
 ![Scene Rendering](documentation/images/chest_cover.png)
 
-The character model was created by Jeremy Leung, an excellent artiste from Sae Institute Geneva.
+The character model was created by Jeremy Leung, an excellent artist from Sae Institute Geneva.
 
 ## Features
 
