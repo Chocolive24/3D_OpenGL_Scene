@@ -21,6 +21,27 @@ void FinalScene::Begin() {
   // ----------------
   // TODO mettre tous les jobs dans le .h
 
+  TextureParameters hdr_map_params("data/textures/hdr/cape_hill_4k.hdr",
+                                   GL_CLAMP_TO_EDGE, GL_LINEAR, false, true,
+                                   true);
+
+  load_hdr_map_ =
+      LoadFileFromDiskJob{hdr_map_params.image_file_path, &hdr_file_buffer_,
+                          JobType::kImageFileLoading};
+
+  decomp_hdr_map_ =
+      ImageFileDecompressingJob{&hdr_file_buffer_, &hdr_image_buffer_,
+                                hdr_map_params.flipped_y, hdr_map_params.hdr};
+  decomp_hdr_map_.AddDependency(&load_hdr_map_);
+
+  load_hdr_map_to_gpu_ = LoadTextureToGpuJob{
+      &hdr_image_buffer_, &equirectangular_map_, hdr_map_params};
+  load_hdr_map_to_gpu_.AddDependency(&decomp_hdr_map_);
+
+  job_system_.AddJob(&load_hdr_map_);
+  job_system_.AddJob(&decomp_hdr_map_);
+  main_thread_jobs_.push(&load_hdr_map_to_gpu_);
+
   create_framebuffers = FunctionExecutionJob([this]() { CreateFrameBuffers(); },
                                              JobType::kMainThread);
   main_thread_jobs_.push(&create_framebuffers);
@@ -41,27 +62,6 @@ void FinalScene::Begin() {
 
   job_system_.AddJob(&create_meshes_job_);
   main_thread_jobs_.push(&load_meshes_to_gpu_job_);
-
-  // Texture jobs.
-  // -------------
-  TextureParameters hdr_map_params("data/textures/hdr/cape_hill_4k.hdr",
-                                   GL_CLAMP_TO_EDGE, GL_LINEAR, false, true,
-                                   true);
-
-  load_hdr_map_ =
-      LoadFileFromDiskJob{hdr_map_params.image_file_path, &hdr_file_buffer_,
-                                   JobType::kImageFileLoading};
-
-  decomp_hdr_map_ = ImageFileDecompressingJob{&hdr_file_buffer_, &hdr_image_buffer_,
-                                hdr_map_params.flipped_y, hdr_map_params.hdr};
-  decomp_hdr_map_.AddDependency(&load_hdr_map_);
-
-  load_hdr_map_to_gpu_ = LoadTextureToGpuJob{&hdr_image_buffer_, &equirectangular_map_,
-                                          hdr_map_params};
-  load_hdr_map_to_gpu_.AddDependency(&decomp_hdr_map_);
-
-  job_system_.AddJob(&load_hdr_map_);
-  job_system_.AddJob(&decomp_hdr_map_);
 
   set_pipe_tex_units_job_ = FunctionExecutionJob(
       [this]() { SetPipelineSamplerTexUnits(); }, JobType::kMainThread);
@@ -102,7 +102,7 @@ void FinalScene::Begin() {
   main_thread_jobs_.push(&load_platform_to_gpu_);
   main_thread_jobs_.push(&load_chest_to_gpu_);
 
-  main_thread_jobs_.push(&load_hdr_map_to_gpu_);
+
 
   init_ibl_maps_job_ = FunctionExecutionJob{[this]() { CreateIblMaps(); },
                                            JobType::kMainThread};
@@ -121,7 +121,7 @@ void FinalScene::Begin() {
 
   CreateMaterialsCreationJobs();
 
-  job_system_.LaunchWorkers(5);
+  job_system_.LaunchWorkers(std::thread::hardware_concurrency());
 }
 
 void FinalScene::End() {
@@ -446,7 +446,6 @@ void FinalScene::CreatePipelineCreationJobs() noexcept {
   pipelines_ = std::move(pipelines);
 
   shader_file_loading_jobs_.reserve(shader_count_);
-  pipeline_creation_jobs_.reserve(pipeline_count_);
 
   int pipeline_iterator = 0;
   for (int i = 0; i < shader_count_; i++) {
@@ -456,9 +455,9 @@ void FinalScene::CreatePipelineCreationJobs() noexcept {
     );
 
     if (i % 2 == 1) {
-      pipeline_creation_jobs_.emplace_back(PipelineCreationJob(
-          &shader_file_buffers_[i - 1], &shader_file_buffers_[i], pipelines_[pipeline_iterator])
-      );
+      pipeline_creation_jobs_[pipeline_iterator] = PipelineCreationJob(
+          &shader_file_buffers_[i - 1], &shader_file_buffers_[i],
+          pipelines_[pipeline_iterator]);
 
       pipeline_creation_jobs_[pipeline_iterator].AddDependency(&shader_file_loading_jobs_[i - 1]);
       pipeline_creation_jobs_[pipeline_iterator].AddDependency(&shader_file_loading_jobs_[i]);
@@ -1156,30 +1155,27 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
 
   texture_ids_ = std::move(texture_ids);
 
-  img_file_loading_jobs_.reserve(texture_count_);
-  img_decompressing_jobs_.reserve(texture_count_);
-  load_tex_to_gpu_jobs_.reserve(texture_count_);
-
   // For loop that creates all the jobs used to create textures for materials.
   for (std::int8_t i = 0; i < texture_count_; i++) {
     const auto& tex_param = texture_inputs[i];
 
     // Image files reading job.
     // ------------------------
-    img_file_loading_jobs_.emplace_back(LoadFileFromDiskJob(
-        tex_param.image_file_path, &image_file_buffers_[i], JobType::kImageFileLoading));
+    img_file_loading_jobs_[i] = LoadFileFromDiskJob(
+        tex_param.image_file_path, &image_file_buffers_[i], JobType::kImageFileLoading);
 
     // Image files decompressing job.
     // ------------------------------
-    img_decompressing_jobs_.emplace_back(ImageFileDecompressingJob(&image_file_buffers_[i], &image_buffers[i],
-                                        tex_param.flipped_y, tex_param.hdr));
+    img_decompressing_jobs_[i] = ImageFileDecompressingJob(&image_file_buffers_[i], &image_buffers[i],
+                                        tex_param.flipped_y, tex_param.hdr);
 
     img_decompressing_jobs_[i].AddDependency(&img_file_loading_jobs_[i]);
+    img_decompressing_jobs_[i].AddDependency(&decomp_hdr_map_);
 
     // Texture loading to GPU job.
     // ---------------------------
-    load_tex_to_gpu_jobs_.emplace_back(LoadTextureToGpuJob(&image_buffers[i], 
-        texture_ids[i], tex_param));
+    load_tex_to_gpu_jobs_[i] = LoadTextureToGpuJob(&image_buffers[i], 
+        texture_ids[i], tex_param);
 
     load_tex_to_gpu_jobs_[i].AddDependency(&img_decompressing_jobs_[i]);
   }
@@ -1188,9 +1184,8 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
       job_system_.AddJob(&reading_job);
   }
 
-  for (auto& decompressing_job : img_decompressing_jobs_) {
-    job_system_.AddJob(&decompressing_job);
-  }
+  decompress_all_images_job_ = DecompressAllImagesJob(&img_decompressing_jobs_);
+  job_system_.AddJob(&decompress_all_images_job_);
 
   for (auto& load_tex_to_gpu : load_tex_to_gpu_jobs_) {
     main_thread_jobs_.push(&load_tex_to_gpu);

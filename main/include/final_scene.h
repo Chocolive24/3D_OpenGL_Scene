@@ -178,6 +178,11 @@ private:
 
   JobSystem job_system_{};
 
+  static constexpr int shader_count_ = 40;
+  static constexpr int pipeline_count_ = shader_count_ / 2;
+  static constexpr std::int8_t texture_count_ = 37;
+
+
   // Main thread's jobs.
   // -------------------
   FunctionExecutionJob create_framebuffers{};
@@ -195,8 +200,8 @@ private:
   FunctionExecutionJob init_opengl_settings_job_{};
 
   std::queue<Job*> main_thread_jobs_{};
-  std::vector<LoadTextureToGpuJob> load_tex_to_gpu_jobs_{};
-  std::vector<PipelineCreationJob> pipeline_creation_jobs_{};
+  std::array<LoadTextureToGpuJob, texture_count_> load_tex_to_gpu_jobs_{};
+  std::array<PipelineCreationJob, pipeline_count_> pipeline_creation_jobs_{};
 
   // Other thread's jobs.
   // --------------------
@@ -208,8 +213,10 @@ private:
   ModelCreationJob platform_creation_job_{};
   ModelCreationJob chest_creation_job_{};
 
-  std::vector<LoadFileFromDiskJob> img_file_loading_jobs_{};
-  std::vector<ImageFileDecompressingJob> img_decompressing_jobs_{};
+  std::array<LoadFileFromDiskJob, texture_count_> img_file_loading_jobs_{};
+  std::array<ImageFileDecompressingJob, texture_count_>
+      img_decompressing_jobs_{};
+  DecompressAllImagesJob<texture_count_> decompress_all_images_job_{};
   std::vector<LoadFileFromDiskJob> shader_file_loading_jobs_{};
 
   // IBL textures creation pipelines.
@@ -443,8 +450,6 @@ private:
   FileBuffer hdr_file_buffer_{};
   ImageBuffer hdr_image_buffer_{};
 
-  static constexpr int shader_count_ = 40;
-  static constexpr int pipeline_count_ = shader_count_ / 2;
   static constexpr std::array<std::string_view, shader_count_> shader_paths_{
       "data/shaders/transform/local_transform.vert",
       "data/shaders/hdr/equirectangular_to_cubemap.frag",
@@ -490,7 +495,7 @@ private:
   std::array<Pipeline*, pipeline_count_> pipelines_{};
   std::array<FileBuffer, shader_count_> shader_file_buffers_{};
 
-  static constexpr std::int8_t texture_count_ = 37;
+
   std::array<FileBuffer, texture_count_> image_file_buffers_{};
   std::array<ImageBuffer, texture_count_> image_buffers{};
   std::array<TextureParameters, texture_count_> texture_inputs_{};

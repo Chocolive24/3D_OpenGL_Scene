@@ -64,25 +64,25 @@ class Job {
 // TODO finish to code it and use it instead of std::queue.
 class JobQueue {
  public:
-  void Push() noexcept;
-  void Pop() noexcept;
+  void Push(Job* job) noexcept;
+  [[nodiscard]] Job* Pop() noexcept;
+
   [[nodiscard]] bool IsEmpty() const noexcept;
 
  private:
   std::queue<Job*> jobs_;
-  std::shared_mutex mutex_;
+  mutable std::shared_mutex shared_mutex_;
 };
 
 class Worker {
  public:
-  explicit Worker(std::queue<Job*>* jobs) noexcept;
+  explicit Worker(JobQueue* jobs) noexcept;
   void Start() noexcept;
   void Join() noexcept;
 
  private:
   std::thread thread_{};
-  std::queue<Job*>* jobs_; // TODO JobQueue* jobs_queue_.
-  bool is_running_ = true;
+  JobQueue* jobs_;  // TODO JobQueue* jobs_queue_.
 
   void LoopOverJobs() noexcept;
 };
@@ -98,6 +98,7 @@ class JobSystem {
   void JoinWorkers() noexcept;
 
  private:
+  JobQueue jobs_;
   std::vector<Worker> workers_{};
 
   std::queue<Job*> img_file_loading_jobs_{};
@@ -106,6 +107,4 @@ class JobSystem {
   std::queue<Job*> mesh_creating_jobs_{};
   std::queue<Job*> model_loading_jobs_{};
   std::vector<Job*> main_thread_jobs_{};
-
-  void RunMainThreadWorkLoop(std::vector<Job*>& jobs) noexcept;
 };

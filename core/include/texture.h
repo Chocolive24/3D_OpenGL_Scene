@@ -77,8 +77,33 @@ class ImageFileDecompressingJob final : public Job {
   bool hdr_ = false;
 };
 
+template <size_t job_count>
+class DecompressAllImagesJob final : public Job {
+ public:
+  explicit DecompressAllImagesJob() noexcept = default;
+  explicit DecompressAllImagesJob(
+      std::array<ImageFileDecompressingJob, job_count>* decompress_jobs) noexcept :
+  Job(JobType::kImageFileDecompressing),
+  decompress_jobs_(decompress_jobs)
+  {}
+  //DecompressAllImagesJob(DecompressAllImagesJob&& other) noexcept = default;
+  //DecompressAllImagesJob& operator=(DecompressAllImagesJob&& other) noexcept =
+  //    default;
+  //DecompressAllImagesJob(const DecompressAllImagesJob& other) noexcept =
+  //    default;
+  //DecompressAllImagesJob& operator=(
+  //    const DecompressAllImagesJob& other) noexcept = default;
+  //~DecompressAllImagesJob() noexcept = default;
 
+  void Work() noexcept override {
+    for (auto& job : *decompress_jobs_) {
+      job.Execute();
+    }
+  }
 
+ private:
+  std::array<ImageFileDecompressingJob, job_count>* decompress_jobs_{};
+};
 
 class Texture {
  public:
