@@ -19,15 +19,12 @@ void FinalScene::Begin() {
 
   // Framebuffer job.
   // ----------------
-  // TODO mettre tous les jobs dans le .h
-
   TextureParameters hdr_map_params("data/textures/hdr/cape_hill_4k.hdr",
                                    GL_CLAMP_TO_EDGE, GL_LINEAR, false, true,
                                    true);
 
   load_hdr_map_ =
-      LoadFileFromDiskJob{hdr_map_params.image_file_path, &hdr_file_buffer_,
-                          JobType::kImageFileLoading};
+      LoadFileFromDiskJob{hdr_map_params.image_file_path, &hdr_file_buffer_};
 
   decomp_hdr_map_ =
       ImageFileDecompressingJob{&hdr_file_buffer_, &hdr_image_buffer_,
@@ -42,8 +39,7 @@ void FinalScene::Begin() {
   job_system_.AddJob(&decomp_hdr_map_);
   main_thread_jobs_.push(&load_hdr_map_to_gpu_);
 
-  create_framebuffers = FunctionExecutionJob([this]() { CreateFrameBuffers(); },
-                                             JobType::kMainThread);
+  create_framebuffers = FunctionExecutionJob([this]() { CreateFrameBuffers(); });
   main_thread_jobs_.push(&create_framebuffers);
 
   // Pipeline jobs.
@@ -52,22 +48,19 @@ void FinalScene::Begin() {
 
   // Meshes initialization jobs.
   // ---------------------------
-  create_meshes_job_ = FunctionExecutionJob([this]() { CreateMeshes(); },
-                                           JobType::kMeshCreating);
+  create_meshes_job_ = FunctionExecutionJob([this]() { CreateMeshes(); });
 
   load_meshes_to_gpu_job_ = FunctionExecutionJob(
-      [this]() { LoadMeshesToGpu(); },
-                                                JobType::kMainThread);
+      [this]() { LoadMeshesToGpu(); });
   load_meshes_to_gpu_job_.AddDependency(&create_meshes_job_);
 
   job_system_.AddJob(&create_meshes_job_);
   main_thread_jobs_.push(&load_meshes_to_gpu_job_);
 
   set_pipe_tex_units_job_ = FunctionExecutionJob(
-      [this]() { SetPipelineSamplerTexUnits(); }, JobType::kMainThread);
+      [this]() { SetPipelineSamplerTexUnits(); });
   main_thread_jobs_.push(&set_pipe_tex_units_job_);
-  create_ssao_data_job_ = FunctionExecutionJob([this]() { CreateSsaoData(); },
-                                               JobType::kMainThread);
+  create_ssao_data_job_ = FunctionExecutionJob([this]() { CreateSsaoData(); });
   main_thread_jobs_.push(&create_ssao_data_job_);
 
     // Models initialization jobs.
@@ -102,20 +95,17 @@ void FinalScene::Begin() {
   main_thread_jobs_.push(&load_platform_to_gpu_);
   main_thread_jobs_.push(&load_chest_to_gpu_);
 
-
-
-  init_ibl_maps_job_ = FunctionExecutionJob{[this]() { CreateIblMaps(); },
-                                           JobType::kMainThread};
+  init_ibl_maps_job_ = FunctionExecutionJob{[this]() { CreateIblMaps(); }};
   init_ibl_maps_job_.AddDependency(&load_hdr_map_to_gpu_);
   init_ibl_maps_job_.AddDependency(&create_meshes_job_);
   main_thread_jobs_.push(&init_ibl_maps_job_);
 
   apply_shadow_mapping_job_ = FunctionExecutionJob(
-      [this]() { ApplyShadowMappingPass(); }, JobType::kMainThread);
+      [this]() { ApplyShadowMappingPass(); });
   main_thread_jobs_.push(&apply_shadow_mapping_job_);
 
   init_opengl_settings_job_ = FunctionExecutionJob(
-      [this]() { InitOpenGlSettings(); }, JobType::kMainThread);
+      [this]() { InitOpenGlSettings(); });
 
   main_thread_jobs_.push(&init_opengl_settings_job_);
 
@@ -144,9 +134,8 @@ void FinalScene::End() {
 
 void FinalScene::Update(float dt) {
   while (!are_all_data_loaded_) {
-    Job* job = nullptr;
-
     if (!main_thread_jobs_.empty()) {
+      Job* job = nullptr;
       job = main_thread_jobs_.front();
       if (job->IsReadyToStart()) {
         job->Execute();
@@ -451,8 +440,7 @@ void FinalScene::CreatePipelineCreationJobs() noexcept {
   for (int i = 0; i < shader_count_; i++) {
     shader_file_loading_jobs_.emplace_back(LoadFileFromDiskJob(
         shader_paths_[i].data(), 
-        &shader_file_buffers_[i], JobType::kShaderFileLoading)
-    );
+        &shader_file_buffers_[i]));
 
     if (i % 2 == 1) {
       pipeline_creation_jobs_[pipeline_iterator] = PipelineCreationJob(
@@ -1162,7 +1150,7 @@ void FinalScene::CreateMaterialsCreationJobs() noexcept {
     // Image files reading job.
     // ------------------------
     img_file_loading_jobs_[i] = LoadFileFromDiskJob(
-        tex_param.image_file_path, &image_file_buffers_[i], JobType::kImageFileLoading);
+        tex_param.image_file_path, &image_file_buffers_[i]);
 
     // Image files decompressing job.
     // ------------------------------
@@ -1868,8 +1856,7 @@ void FinalScene::DestroyMaterials() noexcept {
 LoadTextureToGpuJob::LoadTextureToGpuJob(ImageBuffer* image_buffer,
                                          GLuint* texture_id,
                                          const TextureParameters& tex_param) noexcept
-  : Job(JobType::kMainThread), 
-    image_buffer_(image_buffer),
+  : image_buffer_(image_buffer),
     texture_id_(texture_id),
     texture_param_(tex_param)
 {
@@ -1883,10 +1870,8 @@ void LoadTextureToGpuJob::Work() noexcept {
 }
 
 LoadFileFromDiskJob::LoadFileFromDiskJob(std::string file_path,
-                                         FileBuffer* file_buffer,
-                                         JobType job_type) noexcept
-    : Job(job_type),
-      file_path_(std::move(file_path)),
+                                         FileBuffer* file_buffer) noexcept
+    : file_path_(std::move(file_path)),
       file_buffer_(file_buffer)
 {
 }
@@ -1903,8 +1888,7 @@ void LoadFileFromDiskJob::Work() noexcept {
 PipelineCreationJob::PipelineCreationJob(
   FileBuffer* v_shader_buff,
   FileBuffer* f_shader_buff, Pipeline* pipeline)
-  : Job(JobType::kMainThread),
-    vertex_shader_buffer_(v_shader_buff),
+  : vertex_shader_buffer_(v_shader_buff),
     fragment_shader_buffer_(f_shader_buff),
     pipeline_(pipeline) {}
 
@@ -1918,9 +1902,8 @@ void PipelineCreationJob::Work() noexcept {
 }
 
 FunctionExecutionJob::FunctionExecutionJob(
-    const std::function<void()>& func, const JobType job_type) noexcept
+    const std::function<void()>& func) noexcept
     :
-  Job(job_type),
   function_(func)
 {}
 
@@ -1931,8 +1914,7 @@ void FunctionExecutionJob::Work() noexcept {
 
 ModelCreationJob::ModelCreationJob(Model* model, const std::string_view file_path,
                                const bool gamma, const bool flip_y) noexcept
-    : Job(JobType::kModelLoading),
-      model_(model),
+    : model_(model),
       file_path_(file_path),
       gamma_(gamma),
       flip_y_(flip_y)
@@ -1949,7 +1931,6 @@ void ModelCreationJob::Work() noexcept {
 }
 
 LoadModelToGpuJob::LoadModelToGpuJob(Model* model) noexcept :
-  Job(JobType::kMainThread),
   model_(model) {}
 
 void LoadModelToGpuJob::Work() noexcept {

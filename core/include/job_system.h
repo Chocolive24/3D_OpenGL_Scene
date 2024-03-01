@@ -12,20 +12,9 @@ enum class JobStatus : std::int16_t {
   kNone,
 };
 
-enum class JobType : std::int16_t {
-  kNone = -1,
-  kImageFileLoading,
-  kImageFileDecompressing,
-  kShaderFileLoading,
-  kMeshCreating,
-  kModelLoading,
-  kMainThread,
-};
-
 class Job {
  public:
   Job() noexcept = default;
-  Job(const JobType job_type) : type_(job_type){}
   Job(Job&& other) noexcept = default;
   Job& operator=(Job&& other) noexcept = default;
   Job(const Job& other) noexcept = delete;
@@ -44,16 +33,12 @@ class Job {
   void AddDependency(const Job* dependency) noexcept;
 
   [[nodiscard]] bool IsDone() const noexcept { return status_ == JobStatus::kDone; }
-  [[nodiscard]] bool HasStarted() const noexcept { return status_ == JobStatus::kStarted; }
-
-  JobType type() const noexcept { return type_; }
 
  protected:
   std::vector<const Job*> dependencies_;
   std::promise<void> promise_;
   std::shared_future<void> future_ = promise_.get_future();
   JobStatus status_ = JobStatus::kNone;
-  JobType type_ = JobType::kNone;
 
   virtual void Work() noexcept = 0;
 };
@@ -61,7 +46,6 @@ class Job {
 /**
  * \brief JobQueue is a thread safe queue which stores jobs.
  */
-// TODO finish to code it and use it instead of std::queue.
 class JobQueue {
  public:
   void Push(Job* job) noexcept;
@@ -82,13 +66,11 @@ class Worker {
 
  private:
   std::thread thread_{};
-  JobQueue* jobs_;  // TODO JobQueue* jobs_queue_.
+  JobQueue* jobs_;
 
   void LoopOverJobs() noexcept;
 };
 
-// TODO: Run all possible thread on the hardware.
-// TODO: Each Worker should access the same JobQueue for more parallelism.
 class JobSystem {
  public:
   JobSystem() noexcept = default;
@@ -100,11 +82,4 @@ class JobSystem {
  private:
   JobQueue jobs_;
   std::vector<Worker> workers_{};
-
-  std::queue<Job*> img_file_loading_jobs_{};
-  std::queue<Job*> img_decompressing_jobs_{};
-  std::queue<Job*> shader_file_loading_jobs_{};
-  std::queue<Job*> mesh_creating_jobs_{};
-  std::queue<Job*> model_loading_jobs_{};
-  std::vector<Job*> main_thread_jobs_{};
 };

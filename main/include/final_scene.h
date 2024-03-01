@@ -81,8 +81,7 @@ class LoadTextureToGpuJob final : public Job {
 class FunctionExecutionJob final : public Job {
 public:
   FunctionExecutionJob() noexcept = default;
-  FunctionExecutionJob(const std::function<void()>& func, 
-                         JobType job_type) noexcept;
+  FunctionExecutionJob(const std::function<void()>& func) noexcept;
   FunctionExecutionJob(FunctionExecutionJob&& other) noexcept = default;
   FunctionExecutionJob& operator=(FunctionExecutionJob&& other) noexcept = default;
   FunctionExecutionJob(const FunctionExecutionJob& other) noexcept = delete;
@@ -100,8 +99,7 @@ class LoadFileFromDiskJob final : public Job {
  public:
   LoadFileFromDiskJob() noexcept = default;
   LoadFileFromDiskJob(std::string file_path,
-                      FileBuffer* file_buffer,
-                      JobType job_type) noexcept;
+                      FileBuffer* file_buffer) noexcept;
   LoadFileFromDiskJob(LoadFileFromDiskJob&& other) noexcept = default;
   LoadFileFromDiskJob& operator=(LoadFileFromDiskJob&& other) noexcept = default;
   LoadFileFromDiskJob(const LoadFileFromDiskJob& other) noexcept = delete;

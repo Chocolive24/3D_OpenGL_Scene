@@ -59,12 +59,6 @@ class ImageFileDecompressingJob final : public Job {
   ImageFileDecompressingJob(FileBuffer* file_buffer, 
                             ImageBuffer* img_buffer, 
                             bool flip_y = false, bool hdr = false) noexcept;
-  ImageFileDecompressingJob(ImageFileDecompressingJob&& other) noexcept = default;
-  ImageFileDecompressingJob& operator=(ImageFileDecompressingJob&& other) noexcept = default;
-  ImageFileDecompressingJob(const ImageFileDecompressingJob& other) noexcept = delete;
-  ImageFileDecompressingJob& operator=(const ImageFileDecompressingJob& other) 
-      noexcept = delete;
-  ~ImageFileDecompressingJob() noexcept = default;
 
   void Work() noexcept override;
 
@@ -83,17 +77,8 @@ class DecompressAllImagesJob final : public Job {
   explicit DecompressAllImagesJob() noexcept = default;
   explicit DecompressAllImagesJob(
       std::array<ImageFileDecompressingJob, job_count>* decompress_jobs) noexcept :
-  Job(JobType::kImageFileDecompressing),
   decompress_jobs_(decompress_jobs)
   {}
-  //DecompressAllImagesJob(DecompressAllImagesJob&& other) noexcept = default;
-  //DecompressAllImagesJob& operator=(DecompressAllImagesJob&& other) noexcept =
-  //    default;
-  //DecompressAllImagesJob(const DecompressAllImagesJob& other) noexcept =
-  //    default;
-  //DecompressAllImagesJob& operator=(
-  //    const DecompressAllImagesJob& other) noexcept = default;
-  //~DecompressAllImagesJob() noexcept = default;
 
   void Work() noexcept override {
     for (auto& job : *decompress_jobs_) {

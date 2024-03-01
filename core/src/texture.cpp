@@ -27,8 +27,7 @@ TextureParameters::TextureParameters(std::string_view path, GLint wrap_param,
 
 ImageFileDecompressingJob::ImageFileDecompressingJob(
   FileBuffer* file_buffer, ImageBuffer* img_buffer, bool flip_y, bool hdr) noexcept
-    : Job(JobType::kImageFileDecompressing),
-      file_buffer_(file_buffer),
+    : file_buffer_(file_buffer),
       image_buffer_(img_buffer),
       flip_y_(flip_y),
       hdr_(hdr)

@@ -1,10 +1,7 @@
 #include "job_system.h"
 
-#include <iostream>
-
 #ifdef TRACY_ENABLE
 #include <TracyC.h>
-
 #include <Tracy.hpp>
 #endif  // TRACY_ENABLE
 
@@ -16,6 +13,8 @@ void Job::Execute() noexcept {
       dependency->WaitUntilJobIsDone();
     }
   }
+
+  status_ = JobStatus::kStarted;
 
   // Do the work of the job.
   // -----------------------
@@ -52,22 +51,18 @@ void JobQueue::Push(Job* job) noexcept {
   jobs_.push(job);
 }
 Job* JobQueue::Pop() noexcept {
+  if (IsEmpty()) {
+    return nullptr;
+  }
+
   std::scoped_lock lock(shared_mutex_);
   if (!jobs_.empty()) {
-     Job* job = jobs_.front();
-     jobs_.pop();
-     return job;
+    Job* job = jobs_.front();
+    jobs_.pop();
+    return job;
   }
 
   return nullptr;
-  //if (IsEmpty()) {
-  //  return nullptr;
-  //}
-
-  //std::scoped_lock lock(shared_mutex_);
-  //Job* job = jobs_.front();
-  //jobs_.pop();
-  //return job;
 }
 bool JobQueue::IsEmpty() const noexcept {
   std::shared_lock lock(shared_mutex_);
@@ -84,9 +79,7 @@ void Worker::Join() noexcept { thread_.join(); }
 
 void Worker::LoopOverJobs() noexcept {
   while (!jobs_->IsEmpty()) {
-     Job* job = jobs_->Pop();
-
-    if (job) {
+    if (Job* job = jobs_->Pop()) {
       job->Execute();
     }
   }
@@ -105,40 +98,13 @@ void JobSystem::LaunchWorkers(const int worker_count) noexcept {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
-  std::cout << worker_count << '\n';
+
   workers_.reserve(worker_count);
 
   for (int i = 0; i < worker_count; i++) {
     workers_.emplace_back(&jobs_);
     workers_[i].Start();
-
-    //switch (static_cast<JobType>(i)) { 
-    //  case JobType::kImageFileLoading:
-    //    workers_.emplace_back(&img_file_loading_jobs_);
-    //    workers_[i].Start();
-    //    break;
-    //  case JobType::kImageFileDecompressing:
-    //    workers_.emplace_back(&img_decompressing_jobs_);
-    //    workers_[i].Start();
-    //    break;
-    //  case JobType::kShaderFileLoading:
-    //    workers_.emplace_back(&shader_file_loading_jobs_);
-    //    workers_[i].Start();
-    //    break;
-    //  case JobType::kMeshCreating:
-    //    workers_.emplace_back(&mesh_creating_jobs_);
-    //    workers_[i].Start();
-    //    break;
-    //case JobType::kModelLoading:
-    //    workers_.emplace_back(&model_loading_jobs_);
-    //    workers_[i].Start();
-    //    break;
-    //  case JobType::kNone:
-    //  case JobType::kMainThread:
-    //    break;
-    //}
   }
-
 }
 
 void JobSystem::AddJob(Job* job) noexcept {
@@ -147,27 +113,4 @@ void JobSystem::AddJob(Job* job) noexcept {
 #endif  // TRACY_ENABLE
 
   jobs_.Push(job);
-
-  //switch (job->type()) {
-  //  case JobType::kImageFileLoading:
-  //    img_file_loading_jobs_.push(job);
-  //    break;
-  //  case JobType::kImageFileDecompressing:
-  //    img_decompressing_jobs_.push(job);
-  //    break;
-  //  case JobType::kShaderFileLoading:
-  //    shader_file_loading_jobs_.push(job);
-  //    break;
-  //  case JobType::kMeshCreating:
-  //    mesh_creating_jobs_.push(job);
-  //    break;
-  //  case JobType::kModelLoading:
-  //    model_loading_jobs_.push(job);
-  //    break;
-  //  case JobType::kMainThread:
-  //    main_thread_jobs_.push_back(job);
-  //    break;
-  //  case JobType::kNone:
-  //    break;
-  //}
 }
