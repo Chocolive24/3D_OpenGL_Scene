@@ -16,9 +16,6 @@ void FinalScene::Begin() {
 #ifdef TRACY_ENABLE
   ZoneScoped;
 #endif  // TRACY_ENABLE
-
-  // Framebuffer job.
-  // ----------------
   TextureParameters hdr_map_params("data/textures/hdr/cape_hill_4k.hdr",
                                    GL_CLAMP_TO_EDGE, GL_LINEAR, false, true,
                                    true);
@@ -31,13 +28,9 @@ void FinalScene::Begin() {
                                 hdr_map_params.flipped_y, hdr_map_params.hdr};
   decomp_hdr_map_.AddDependency(&load_hdr_map_);
 
-  load_hdr_map_to_gpu_ = LoadTextureToGpuJob{
-      &hdr_image_buffer_, &equirectangular_map_, hdr_map_params};
-  load_hdr_map_to_gpu_.AddDependency(&decomp_hdr_map_);
-
   job_system_.AddJob(&load_hdr_map_);
   job_system_.AddJob(&decomp_hdr_map_);
-  main_thread_jobs_.push(&load_hdr_map_to_gpu_);
+
 
   create_framebuffers = FunctionExecutionJob([this]() { CreateFrameBuffers(); });
   main_thread_jobs_.push(&create_framebuffers);
@@ -94,6 +87,11 @@ void FinalScene::Begin() {
   main_thread_jobs_.push(&load_sword_to_gpu_);
   main_thread_jobs_.push(&load_platform_to_gpu_);
   main_thread_jobs_.push(&load_chest_to_gpu_);
+
+      load_hdr_map_to_gpu_ = LoadTextureToGpuJob{
+      &hdr_image_buffer_, &equirectangular_map_, hdr_map_params};
+  load_hdr_map_to_gpu_.AddDependency(&decomp_hdr_map_);
+  main_thread_jobs_.push(&load_hdr_map_to_gpu_);
 
   init_ibl_maps_job_ = FunctionExecutionJob{[this]() { CreateIblMaps(); }};
   init_ibl_maps_job_.AddDependency(&load_hdr_map_to_gpu_);
